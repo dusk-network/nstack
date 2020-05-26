@@ -20,7 +20,7 @@ for i in 0..n {
 
 // get a mutable reference to the 128'th element
 
-let element = *nt.get_mut(128).unwrap().unwrap();
+let element = &mut *nt.get_mut(128).unwrap().unwrap();
 
 ```
 
@@ -40,7 +40,7 @@ containing 1 element:
 containing 3 elements:
 
   [ *,  * ]
-	 /     \
+   /     \
 [0, 1] [2, -]
 
 containing 5 elements:
@@ -48,6 +48,6 @@ containing 5 elements:
       [ *    ,    *  ]
        /           \
   [ * , * ]      [ * , - ]
-	 /     \        /
+   /     \        /
 [0, 1] [2, 3] [ 4, - ]
 ```
