@@ -1,3 +1,7 @@
+//! NStack
+//!
+//! A stack datastructure with indexed lookup.
+#![warn(missing_docs)]
 use std::borrow::Borrow;
 use std::marker::PhantomData;
 use std::{io, mem};
@@ -10,14 +14,15 @@ use kelvin::{
 
 const N: usize = 4;
 
+/// A stack datastructure with indexed lookup.
 #[derive(Clone)]
-pub struct NTree<T, A, H>([Handle<Self, H>; N], PhantomData<(T, A)>)
+pub struct NStack<T, A, H>([Handle<Self, H>; N], PhantomData<(T, A)>)
 where
     T: Content<H>,
     Self: Compound<H>,
     H: ByteHash;
 
-impl<T, A, H> Default for NTree<T, A, H>
+impl<T, A, H> Default for NStack<T, A, H>
 where
     T: Content<H>,
     A: Content<H> + Annotation<T, H>,
@@ -25,11 +30,11 @@ where
 {
     fn default() -> Self {
         let handles: [Handle<Self, H>; N] = Default::default();
-        NTree(handles, PhantomData)
+        NStack(handles, PhantomData)
     }
 }
 
-impl<T, A, H> Content<H> for NTree<T, A, H>
+impl<T, A, H> Content<H> for NStack<T, A, H>
 where
     T: Content<H>,
     A: Content<H> + Annotation<T, H>,
@@ -47,11 +52,11 @@ where
         for handle in handles.iter_mut() {
             *handle = Handle::restore(source)?;
         }
-        Ok(NTree(handles, PhantomData))
+        Ok(NStack(handles, PhantomData))
     }
 }
 
-impl<T, A, H> Compound<H> for NTree<T, A, H>
+impl<T, A, H> Compound<H> for NStack<T, A, H>
 where
     T: Content<H>,
     A: Content<H> + Annotation<T, H>,
@@ -80,16 +85,18 @@ enum PopResult<T> {
     None,
 }
 
-impl<T, A, H> NTree<T, A, H>
+impl<T, A, H> NStack<T, A, H>
 where
     T: Content<H>,
     A: Content<H> + Annotation<T, H>,
     H: ByteHash,
 {
+    /// Creates a new empty NStack
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Pushes a new element onto the stack
     pub fn push(&mut self, t: T) -> io::Result<()> {
         match self._push(t)? {
             PushResult::Ok => Ok(()),
@@ -187,6 +194,9 @@ where
         }
     }
 
+    /// Pop an element off the stack.
+    ///
+    /// Returns the popped element, if any.
     pub fn pop(&mut self) -> io::Result<Option<T>> {
         match self._pop()? {
             PopResult::Ok(t) => Ok(Some(t)),
@@ -254,6 +264,7 @@ where
         Ok(PopResult::None)
     }
 
+    /// Get a branch pointing to the element stored at index `idx`, if any
     pub fn get<U>(&self, idx: U) -> io::Result<Option<Branch<Self, H>>>
     where
         U: Counter,
@@ -262,6 +273,7 @@ where
         Branch::new(self, &mut Nth::new(idx))
     }
 
+    /// Get a mutable branch pointing to the element stored at index `idx`, if any
     pub fn get_mut<U>(
         &mut self,
         idx: U,
@@ -282,14 +294,14 @@ mod tests {
 
     #[test]
     fn trivial() {
-        let mut nt = NTree::<_, Cardinality<u64>, Blake2b>::new();
+        let mut nt = NStack::<_, Cardinality<u64>, Blake2b>::new();
         nt.push(8).unwrap();
         assert_eq!(nt.pop().unwrap(), Some(8));
     }
 
     #[test]
     fn double() {
-        let mut nt = NTree::<_, Cardinality<u64>, Blake2b>::new();
+        let mut nt = NStack::<_, Cardinality<u64>, Blake2b>::new();
         nt.push(0).unwrap();
         nt.push(1).unwrap();
         assert_eq!(nt.pop().unwrap(), Some(1));
@@ -300,7 +312,7 @@ mod tests {
     fn multiple() {
         let n = 1024;
 
-        let mut nt = NTree::<_, Cardinality<u64>, Blake2b>::new();
+        let mut nt = NStack::<_, Cardinality<u64>, Blake2b>::new();
 
         for i in 0..n {
             nt.push(i).unwrap();
@@ -318,7 +330,7 @@ mod tests {
     fn get() {
         let n = 128;
 
-        let mut nt = NTree::<_, Cardinality<u64>, Blake2b>::new();
+        let mut nt = NStack::<_, Cardinality<u64>, Blake2b>::new();
 
         for i in 0..n {
             println!("pushing {}", i);
@@ -335,7 +347,7 @@ mod tests {
     fn get_mut() {
         let n = 1024;
 
-        let mut nt = NTree::<_, Cardinality<u64>, Blake2b>::new();
+        let mut nt = NStack::<_, Cardinality<u64>, Blake2b>::new();
 
         for i in 0..n {
             nt.push(i).unwrap();
@@ -355,7 +367,7 @@ mod tests {
     fn branch_lengths() {
         let n = 256;
 
-        let mut nt = NTree::<_, Cardinality<u64>, Blake2b>::new();
+        let mut nt = NStack::<_, Cardinality<u64>, Blake2b>::new();
 
         for i in 0..n {
             nt.push(i).unwrap();
@@ -368,5 +380,5 @@ mod tests {
         }
     }
 
-    quickcheck_stack!(|| NTree::<_, Cardinality<u64>, Blake2b>::new());
+    quickcheck_stack!(|| NStack::<_, Cardinality<u64>, Blake2b>::new());
 }
