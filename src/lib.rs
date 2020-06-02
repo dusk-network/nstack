@@ -199,8 +199,7 @@ where
     /// Returns the popped element, if any.
     pub fn pop(&mut self) -> io::Result<Option<T>> {
         match self._pop()? {
-            PopResult::Ok(t) => Ok(Some(t)),
-            PopResult::Last(t) => Ok(Some(t)),
+            PopResult::Ok(t) | PopResult::Last(t) => Ok(Some(t)),
             PopResult::None => Ok(None),
         }
     }
