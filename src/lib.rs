@@ -148,8 +148,8 @@ where
             SeenNode(i) => {
                 let insert_new;
 
-                match &mut *self.0[i].inner_mut()? {
-                    HandleMut::Node(n) => {
+                match self.0[i].inner_mut()? {
+                    HandleMut::Node(ref mut n) => {
                         match n._push(t)? {
                             PushResult::Ok => return Ok(PushResult::Ok),
                             PushResult::NoRoom(t, depth) => {
@@ -175,7 +175,6 @@ where
                                         new_node.0[0] = Handle::new_node(inner);
                                     }
 
-                                    // TODO extend branch
                                     insert_new = Some(new_node);
                                 }
                             }
@@ -223,41 +222,28 @@ where
                         PopResult::Ok(popped)
                     });
                 }
-                HandleType::Node => {
-                    let mut remove = false;
-                    let popped;
+                HandleType::Node => match self.0[i].inner_mut()? {
+                    HandleMut::Node(ref mut n) => {
+                        match n._pop()? {
+                            PopResult::Ok(t) => return Ok(PopResult::Ok(t)),
+                            PopResult::Last(t) => {
+                                n.replace(Handle::new_empty());
 
-                    match &mut *self.0[i].inner_mut()? {
-                        HandleMut::Node(n) => {
-                            match n._pop()? {
-                                PopResult::Ok(t) => popped = Some(t),
-                                PopResult::Last(t) => {
-                                    popped = Some(t);
-                                    remove = true;
+                                if i == 0 {
+                                    return Ok(PopResult::Last(t));
+                                } else {
+                                    return Ok(PopResult::Ok(t));
                                 }
-                                PopResult::None => {
-                                    unreachable!("invariant: no empty subnodes")
-                                }
-                            };
-                        }
-                        _ => unreachable!(
-                            "invariant: no nodes and leaves on same level"
-                        ),
-                    }
-
-                    return Ok(match (remove, popped) {
-                        (_, None) => PopResult::None,
-                        (false, Some(t)) => PopResult::Ok(t),
-                        (true, Some(t)) => {
-                            self.0[i] = Handle::new_empty();
-                            if i == 0 {
-                                PopResult::Last(t)
-                            } else {
-                                PopResult::Ok(t)
                             }
-                        }
-                    });
-                }
+                            PopResult::None => {
+                                unreachable!("invariant: no empty subnodes")
+                            }
+                        };
+                    }
+                    _ => unreachable!(
+                        "invariant: no nodes and leaves on same level"
+                    ),
+                },
             }
         }
         Ok(PopResult::None)
