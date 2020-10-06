@@ -9,4 +9,7 @@ repository = "https://github.com/dusk-network/nstack"
 keywords = ["merkle", "datastructure", "stack"]
 
 [dependencies]
-kelvin = "0.19.0"
+kelvin = { path = "../kelvin" }
+canonical = { path = "../canonical/canon" }
+canonical_derive = { path = "../canonical/canon_derive" }
+canonical_host = { path = "../canonical/canon_host" }
