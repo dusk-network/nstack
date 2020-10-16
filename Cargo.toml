@@ -10,6 +10,6 @@ keywords = ["merkle", "datastructure", "stack"]
 
 [dependencies]
 microkelvin = { path = "../microkelvin" }
-canonical = "0.2.0"
-canonical_derive = "0.2.0"
-canonical_host = "0.2.0"
+canonical = "0.2"
+canonical_derive = "0.2"
+canonical_host = "0.2"
