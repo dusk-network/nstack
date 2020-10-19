@@ -7,28 +7,30 @@
 //! NStack
 //!
 //! A stack datastructure with indexed lookup.
-#![warn(missing_docs)]
 use core::mem;
 
 use canonical::{Canon, Store};
 use canonical_derive::Canon;
 
-use microkelvin::{
-    Annotated, Annotation, Branch, Cardinality, Compound, Traverse,
-};
+use microkelvin::{Annotated, Annotation, Child, Compound};
 
 const N: usize = 4;
 
 #[derive(Clone, Canon, Debug)]
-pub enum NStack<T, A, S: Store> {
+pub enum NStack<T, A, S>
+where
+    A: Canon<S> + Annotation<T>,
+    T: Canon<S>,
+    S: Store,
+{
     Leaf([Option<T>; N]),
-    Node([Option<Annotated<NStack<T, A, S>, A, S>>; N]),
+    Node([Option<Annotated<NStack<T, A, S>, S>>; N]),
 }
 
-impl<T, A, S> Compound for NStack<T, A, S>
+impl<T, A, S> Compound<S> for NStack<T, A, S>
 where
-    Self: Canon<S>,
-    A: Annotation<T>,
+    T: Canon<S>,
+    A: Canon<S> + Annotation<T>,
     S: Store,
 {
     type Leaf = T;
@@ -36,49 +38,57 @@ where
 
     fn annotation(&self) -> Self::Annotation {
         match self {
-            NStack::Leaf([None, ..]) => A::identity(),
-            NStack::Leaf([Some(a), None, ..]) => A::from_leaf(a),
-            NStack::Leaf([Some(a), Some(b), None, ..]) => {
-                A::op(&A::from_leaf(a), &A::from_leaf(b))
+            NStack::Leaf([None, None, None, None]) => A::identity(),
+            NStack::Leaf([Some(a), None, None, None]) => A::from_leaf(a),
+            NStack::Leaf([Some(a), Some(b), None, None]) => {
+                A::from_leaf(a).op(&A::from_leaf(b))
             }
-            NStack::Leaf([Some(a), Some(b), Some(c), None]) => A::op(
-                &A::op(&A::from_leaf(a), &A::from_leaf(b)),
-                &A::from_leaf(c),
-            ),
-            NStack::Leaf([Some(a), Some(b), Some(c), Some(d)]) => A::op(
-                &A::op(&A::from_leaf(a), &A::from_leaf(b)),
-                &A::op(&A::from_leaf(c), &A::from_leaf(d)),
-            ),
+            NStack::Leaf([Some(a), Some(b), Some(c), None]) => {
+                A::from_leaf(a).op(&A::from_leaf(b)).op(&A::from_leaf(c))
+            }
+            NStack::Leaf([Some(a), Some(b), Some(c), Some(d)]) => {
+                let ab = A::from_leaf(a).op(&A::from_leaf(b));
+                let cd = A::from_leaf(c).op(&A::from_leaf(d));
+                ab.op(&cd)
+            }
             NStack::Leaf(_) => unreachable!("Invalid leaf structure"),
 
-            NStack::Node([None, ..]) => A::identity(),
-            NStack::Node([Some(a), None, ..]) => a.annotation().clone(),
-            NStack::Node([Some(a), Some(b), None, ..]) => {
-                A::op(a.annotation(), b.annotation())
+            NStack::Node([None, None, None, None]) => A::identity(),
+            NStack::Node([Some(a), None, None, None]) => a.annotation().clone(),
+            NStack::Node([Some(a), Some(b), None, None]) => {
+                a.annotation().clone().op(b.annotation())
             }
             NStack::Node([Some(a), Some(b), Some(c), None]) => {
-                A::op(&A::op(a.annotation(), b.annotation()), c.annotation())
+                a.annotation().clone().op(b.annotation()).op(c.annotation())
             }
-            NStack::Node([Some(a), Some(b), Some(c), Some(d)]) => A::op(
-                &A::op(a.annotation(), b.annotation()),
-                &A::op(c.annotation(), d.annotation()),
-            ),
+            NStack::Node([Some(a), Some(b), Some(c), Some(d)]) => {
+                let ab = a.annotation().clone().op(b.annotation());
+                let cd = c.annotation().clone().op(d.annotation());
+                ab.op(&cd)
+            }
             NStack::Node(_) => unreachable!("Invalid node structure"),
         }
     }
 
-    fn traverse<M: Annotation<<Self as Compound>::Leaf>>(
-        &self,
-        method: &mut M,
-    ) -> Traverse {
-        todo!()
+    fn child(&self, ofs: usize) -> Child<Self, S> {
+        match (ofs, self) {
+            (0, NStack::Node([Some(a), _, _, _])) => Child::Node(a),
+            (1, NStack::Node([_, Some(b), _, _])) => Child::Node(b),
+            (2, NStack::Node([_, _, Some(c), _])) => Child::Node(c),
+            (3, NStack::Node([_, _, _, Some(d)])) => Child::Node(d),
+            (0, NStack::Leaf([Some(a), _, _, _])) => Child::Leaf(a),
+            (1, NStack::Leaf([_, Some(b), _, _])) => Child::Leaf(b),
+            (2, NStack::Leaf([_, _, Some(c), _])) => Child::Leaf(c),
+            (3, NStack::Leaf([_, _, _, Some(d)])) => Child::Leaf(d),
+            _ => Child::EndOfNode,
+        }
     }
 }
 
 impl<T, A, S> Default for NStack<T, A, S>
 where
     T: Canon<S>,
-    A: Canon<S>,
+    A: Canon<S> + Annotation<T>,
     S: Store,
 {
     fn default() -> Self {
@@ -265,11 +275,6 @@ where
             }
         }
     }
-
-    fn get(&self, i: u64) -> Result<Option<Branch<Self, S>>, S::Error> {
-        let mut search = Cardinality::new(i);
-        Branch::traverse(self, &mut search)
-    }
 }
 
 #[cfg(test)]
@@ -277,7 +282,7 @@ mod tests {
     use super::*;
 
     use canonical_host::MemStore;
-    use microkelvin::Cardinality;
+    use microkelvin::{Cardinality, Nth};
     // use kelvin::quickcheck_stack;
 
     #[test]
@@ -320,59 +325,39 @@ mod tests {
     }
 
     #[test]
-    fn get() {
-        let n = 128;
+    fn nth() {
+        let n: u64 = 1024;
 
         let mut nstack = NStack::<_, Cardinality, MemStore>::new();
 
-        for i in 0u64..n {
-            println!("pushing {}", i);
+        for i in 0..n {
             nstack.push(i).unwrap();
-
-            for o in 0..i {
-                assert_eq!(*nstack.get(o).unwrap().unwrap(), o);
-            }
-
-            assert!(nstack.get(i + 1).unwrap().is_none());
         }
+
+        for i in 0..n {
+            assert_eq!(*nstack.nth(i).unwrap().unwrap(), i);
+        }
+
+        assert!(nstack.nth(n).unwrap().is_none());
     }
 
-    // #[test]
-    // fn get_mut() {
-    //     let n = 1024;
+    // Assert that all branches are always of the same length
+    #[test]
+    fn branch_lengths() {
+        let n = 256;
 
-    //     let mut nt = NStack::<_, Cardinality<u64>, MemStore>::new();
+        let mut nt = NStack::<_, Cardinality, MemStore>::new();
 
-    //     for i in 0..n {
-    //         nt.push(i).unwrap();
-    //     }
+        for i in 0..n {
+            nt.push(i).unwrap();
+        }
 
-    //     for i in 0..n {
-    //         *nt.get_mut(i).unwrap().unwrap() += 1;
-    //     }
+        let length_zero = nt.nth(0).unwrap().unwrap().len();
 
-    //     for i in 0..n {
-    //         assert_eq!(*nt.get(i).unwrap().unwrap(), i + 1);
-    //     }
-    // }
-
-    // // Assert that all branches are always of the same length
-    // #[test]
-    // fn branch_lengths() {
-    //     let n = 256;
-
-    //     let mut nt = NStack::<_, Cardinality<u64>, MemStore>::new();
-
-    //     for i in 0..n {
-    //         nt.push(i).unwrap();
-    //     }
-
-    //     let length_zero = nt.get(0).unwrap().unwrap().levels().len();
-
-    //     for i in 1..n {
-    //         assert_eq!(length_zero, nt.get(i).unwrap().unwrap().levels().len())
-    //     }
-    // }
+        for i in 1..n {
+            assert_eq!(length_zero, nt.nth(i).unwrap().unwrap().len())
+        }
+    }
 
     // quickcheck_stack!(|| NStack::<_, Cardinality<u64>, MemStore>::new());
 }
