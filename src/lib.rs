@@ -12,7 +12,7 @@ use core::mem;
 use canonical::{Canon, Store};
 use canonical_derive::Canon;
 
-use microkelvin::{Annotated, Annotation, Child, Compound};
+use microkelvin::{Annotated, Annotation, Child, ChildMut, Compound};
 
 const N: usize = 4;
 
@@ -83,6 +83,20 @@ where
             _ => Child::EndOfNode,
         }
     }
+
+    fn child_mut(&mut self, ofs: usize) -> ChildMut<Self, S> {
+        match (ofs, self) {
+            (0, NStack::Node([Some(a), _, _, _])) => ChildMut::Node(a),
+            (1, NStack::Node([_, Some(b), _, _])) => ChildMut::Node(b),
+            (2, NStack::Node([_, _, Some(c), _])) => ChildMut::Node(c),
+            (3, NStack::Node([_, _, _, Some(d)])) => ChildMut::Node(d),
+            (0, NStack::Leaf([Some(a), _, _, _])) => ChildMut::Leaf(a),
+            (1, NStack::Leaf([_, Some(b), _, _])) => ChildMut::Leaf(b),
+            (2, NStack::Leaf([_, _, Some(c), _])) => ChildMut::Leaf(c),
+            (3, NStack::Leaf([_, _, _, Some(d)])) => ChildMut::Leaf(d),
+            _ => ChildMut::EndOfNode,
+        }
+    }
 }
 
 impl<T, A, S> Default for NStack<T, A, S>
@@ -126,7 +140,7 @@ where
                 let old_root = mem::take(self);
 
                 let mut new_node = [None, None, None, None];
-                new_node[0] = Some(Annotated::new(old_root)?);
+                new_node[0] = Some(Annotated::new(old_root));
 
                 *self = NStack::Node(new_node);
 
@@ -185,7 +199,7 @@ where
                                                 NStack::new(),
                                             );
                                             new_node = NStack::Node([
-                                                Some(Annotated::new(old_root)?),
+                                                Some(Annotated::new(old_root)),
                                                 None,
                                                 None,
                                                 None,
@@ -203,7 +217,7 @@ where
                 }
                 // break out and insert
                 if let Some((new_node, index)) = insert_node {
-                    node[index] = Some(Annotated::new(new_node)?);
+                    node[index] = Some(Annotated::new(new_node));
                 } else {
                     unreachable!()
                 }
@@ -339,6 +353,27 @@ mod tests {
         }
 
         assert!(nstack.nth(n).unwrap().is_none());
+    }
+
+    #[test]
+    fn nth_mut() -> Result<(), <MemStore as Store>::Error> {
+        let n: u64 = 1024;
+
+        let mut nstack = NStack::<_, Cardinality, MemStore>::new();
+
+        for i in 0..n {
+            nstack.push(i)?;
+        }
+
+        for i in 0..n {
+            *nstack.nth_mut(i)?.unwrap() += 1;
+        }
+
+        for i in 0..n {
+            assert_eq!(*nstack.nth(i)?.unwrap(), i + 1);
+        }
+
+        Ok(())
     }
 
     // Assert that all branches are always of the same length
