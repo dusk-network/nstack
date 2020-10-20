@@ -7,95 +7,125 @@
 //! NStack
 //!
 //! A stack datastructure with indexed lookup.
-#![warn(missing_docs)]
-use std::borrow::Borrow;
-use std::marker::PhantomData;
-use std::{io, mem};
+use core::mem;
 
-use kelvin::annotations::{Cardinality, Counter, Nth};
-use kelvin::{
-    Annotation, Branch, BranchMut, ByteHash, Compound, Content, Handle,
-    HandleMut, HandleType, Sink, Source,
-};
+use canonical::{Canon, Store};
+use canonical_derive::Canon;
+
+use microkelvin::{Annotated, Annotation, Child, ChildMut, Compound};
 
 const N: usize = 4;
 
-/// A stack datastructure with indexed lookup.
-#[derive(Clone)]
-pub struct NStack<T, A, H>([Handle<Self, H>; N], PhantomData<(T, A)>)
+#[derive(Clone, Canon, Debug)]
+pub enum NStack<T, A, S>
 where
-    T: Content<H>,
-    Self: Compound<H>,
-    H: ByteHash;
-
-impl<T, A, H> Default for NStack<T, A, H>
-where
-    T: Content<H>,
-    A: Content<H> + Annotation<T, H>,
-    H: ByteHash,
+    A: Canon<S> + Annotation<T>,
+    T: Canon<S>,
+    S: Store,
 {
-    fn default() -> Self {
-        let handles: [Handle<Self, H>; N] = Default::default();
-        NStack(handles, PhantomData)
-    }
+    Leaf([Option<T>; N]),
+    Node([Option<Annotated<NStack<T, A, S>, S>>; N]),
 }
 
-impl<T, A, H> Content<H> for NStack<T, A, H>
+impl<T, A, S> Compound<S> for NStack<T, A, S>
 where
-    T: Content<H>,
-    A: Content<H> + Annotation<T, H>,
-    H: ByteHash,
-{
-    fn persist(&mut self, sink: &mut Sink<H>) -> io::Result<()> {
-        for handle in self.0.iter_mut() {
-            handle.persist(sink)?;
-        }
-        Ok(())
-    }
-
-    fn restore(source: &mut Source<H>) -> io::Result<Self> {
-        let mut handles: [Handle<Self, H>; N] = Default::default();
-        for handle in handles.iter_mut() {
-            *handle = Handle::restore(source)?;
-        }
-        Ok(NStack(handles, PhantomData))
-    }
-}
-
-impl<T, A, H> Compound<H> for NStack<T, A, H>
-where
-    T: Content<H>,
-    A: Content<H> + Annotation<T, H>,
-    H: ByteHash,
+    T: Canon<S>,
+    A: Canon<S> + Annotation<T>,
+    S: Store,
 {
     type Leaf = T;
     type Annotation = A;
 
-    fn children(&self) -> &[Handle<Self, H>] {
-        &self.0
+    fn annotation(&self) -> Self::Annotation {
+        match self {
+            NStack::Leaf([None, None, None, None]) => A::identity(),
+            NStack::Leaf([Some(a), None, None, None]) => A::from_leaf(a),
+            NStack::Leaf([Some(a), Some(b), None, None]) => {
+                A::from_leaf(a).op(&A::from_leaf(b))
+            }
+            NStack::Leaf([Some(a), Some(b), Some(c), None]) => {
+                A::from_leaf(a).op(&A::from_leaf(b)).op(&A::from_leaf(c))
+            }
+            NStack::Leaf([Some(a), Some(b), Some(c), Some(d)]) => {
+                let ab = A::from_leaf(a).op(&A::from_leaf(b));
+                let cd = A::from_leaf(c).op(&A::from_leaf(d));
+                ab.op(&cd)
+            }
+            NStack::Leaf(_) => unreachable!("Invalid leaf structure"),
+
+            NStack::Node([None, None, None, None]) => A::identity(),
+            NStack::Node([Some(a), None, None, None]) => a.annotation().clone(),
+            NStack::Node([Some(a), Some(b), None, None]) => {
+                a.annotation().clone().op(b.annotation())
+            }
+            NStack::Node([Some(a), Some(b), Some(c), None]) => {
+                a.annotation().clone().op(b.annotation()).op(c.annotation())
+            }
+            NStack::Node([Some(a), Some(b), Some(c), Some(d)]) => {
+                let ab = a.annotation().clone().op(b.annotation());
+                let cd = c.annotation().clone().op(d.annotation());
+                ab.op(&cd)
+            }
+            NStack::Node(_) => unreachable!("Invalid node structure"),
+        }
     }
 
-    fn children_mut(&mut self) -> &mut [Handle<Self, H>] {
-        &mut self.0
+    fn child(&self, ofs: usize) -> Child<Self, S> {
+        match (ofs, self) {
+            (0, NStack::Node([Some(a), _, _, _])) => Child::Node(a),
+            (1, NStack::Node([_, Some(b), _, _])) => Child::Node(b),
+            (2, NStack::Node([_, _, Some(c), _])) => Child::Node(c),
+            (3, NStack::Node([_, _, _, Some(d)])) => Child::Node(d),
+            (0, NStack::Leaf([Some(a), _, _, _])) => Child::Leaf(a),
+            (1, NStack::Leaf([_, Some(b), _, _])) => Child::Leaf(b),
+            (2, NStack::Leaf([_, _, Some(c), _])) => Child::Leaf(c),
+            (3, NStack::Leaf([_, _, _, Some(d)])) => Child::Leaf(d),
+            _ => Child::EndOfNode,
+        }
+    }
+
+    fn child_mut(&mut self, ofs: usize) -> ChildMut<Self, S> {
+        match (ofs, self) {
+            (0, NStack::Node([Some(a), _, _, _])) => ChildMut::Node(a),
+            (1, NStack::Node([_, Some(b), _, _])) => ChildMut::Node(b),
+            (2, NStack::Node([_, _, Some(c), _])) => ChildMut::Node(c),
+            (3, NStack::Node([_, _, _, Some(d)])) => ChildMut::Node(d),
+            (0, NStack::Leaf([Some(a), _, _, _])) => ChildMut::Leaf(a),
+            (1, NStack::Leaf([_, Some(b), _, _])) => ChildMut::Leaf(b),
+            (2, NStack::Leaf([_, _, Some(c), _])) => ChildMut::Leaf(c),
+            (3, NStack::Leaf([_, _, _, Some(d)])) => ChildMut::Leaf(d),
+            _ => ChildMut::EndOfNode,
+        }
     }
 }
 
-enum PushResult<T> {
+impl<T, A, S> Default for NStack<T, A, S>
+where
+    T: Canon<S>,
+    A: Canon<S> + Annotation<T>,
+    S: Store,
+{
+    fn default() -> Self {
+        NStack::Leaf([None, None, None, None])
+    }
+}
+
+enum Push<T> {
     Ok,
-    NoRoom(T, usize),
+    NoRoom { t: T, depth: usize },
 }
 
-enum PopResult<T> {
+enum Pop<T> {
     Ok(T),
     Last(T),
     None,
 }
 
-impl<T, A, H> NStack<T, A, H>
+impl<T, A, S> NStack<T, A, S>
 where
-    T: Content<H>,
-    A: Content<H> + Annotation<T, H>,
-    H: ByteHash,
+    T: Canon<S>,
+    A: Canon<S> + Annotation<T>,
+    S: Store,
 {
     /// Creates a new empty NStack
     pub fn new() -> Self {
@@ -103,98 +133,96 @@ where
     }
 
     /// Pushes a new element onto the stack
-    pub fn push(&mut self, t: T) -> io::Result<()> {
+    pub fn push(&mut self, t: T) -> Result<(), S::Error> {
         match self._push(t)? {
-            PushResult::Ok => Ok(()),
-            PushResult::NoRoom(t, _) => {
-                // in this branch we determined that the node is full with leaves or nodes,
-                // so we just wrap it in a new root node and recurse
-
+            Push::Ok => Ok(()),
+            Push::NoRoom { t, .. } => {
                 let old_root = mem::take(self);
 
+                let mut new_node = [None, None, None, None];
+                new_node[0] = Some(Annotated::new(old_root));
+
+                *self = NStack::Node(new_node);
+
                 // the first child of our new root will be our old root
-                self.0[0] = Handle::new_node(old_root);
-                // recurse
                 self.push(t)
             }
         }
     }
 
-    fn _push(&mut self, t: T) -> io::Result<PushResult<T>> {
-        #[derive(Debug)]
-        enum State {
-            Initial,
-            SeenNode(usize),
-        }
-        use State::*;
-
-        let mut state = Initial;
-
-        for i in 0..N {
-            match (&state, self.0[i].handle_type()) {
-                (Initial, HandleType::None) => {
-                    self.0[i] = Handle::new_leaf(t);
-                    return Ok(PushResult::Ok);
+    fn _push(&mut self, t: T) -> Result<Push<T>, S::Error> {
+        match self {
+            NStack::Leaf(leaf) => {
+                for i in 0..N {
+                    match leaf[i] {
+                        ref mut empty @ None => {
+                            *empty = Some(t);
+                            return Ok(Push::Ok);
+                        }
+                        Some(_) => (),
+                    }
                 }
-                (Initial, HandleType::Leaf) => (),
-                (Initial, HandleType::Node) => state = SeenNode(i),
-                (SeenNode(_), HandleType::None) => {
-                    // we found the last node
-                    break;
-                }
-                (SeenNode(_), HandleType::Leaf) => {
-                    unreachable!("invariant: no nodes and leaves on same level")
-                }
-                (SeenNode(_), HandleType::Node) => state = SeenNode(i),
+                return Ok(Push::NoRoom { t, depth: 0 });
             }
-        }
+            NStack::Node(node) => {
+                let mut insert_node = None;
 
-        match state {
-            Initial => Ok(PushResult::NoRoom(t, 0)),
-            SeenNode(i) => {
-                let insert_new;
+                // find last node, searching from reverse
+                for i in 0..N {
+                    let i = N - i - 1;
 
-                match self.0[i].inner_mut()? {
-                    HandleMut::Node(ref mut n) => {
-                        match n._push(t)? {
-                            PushResult::Ok => return Ok(PushResult::Ok),
-                            PushResult::NoRoom(t, depth) => {
-                                // we need to create a new branch
-                                // is there space here?
-                                if i == N - 1 {
-                                    // no space for new branch
-                                    return Ok(PushResult::NoRoom(
-                                        t,
-                                        depth + 1,
-                                    ));
-                                } else {
-                                    let mut new_node = Self::new();
-                                    new_node.0[0] = Handle::new_leaf(t);
+                    match &mut node[i] {
+                        None => (),
+                        Some(annotated) => {
+                            match annotated.val_mut()?._push(t)? {
+                                Push::Ok => return Ok(Push::Ok),
+                                Push::NoRoom { t, depth } => {
+                                    // Are we in the last node
+                                    if i == N - 1 {
+                                        return Ok(Push::NoRoom {
+                                            t,
+                                            depth: depth + 1,
+                                        });
+                                    } else {
+                                        // create a new node
+                                        let mut new_node = NStack::Leaf([
+                                            Some(t),
+                                            None,
+                                            None,
+                                            None,
+                                        ]);
 
-                                    // wrap the node in a long enough branch
+                                        // give it enough depth
+                                        for _ in 0..depth {
+                                            let old_root = mem::replace(
+                                                &mut new_node,
+                                                NStack::new(),
+                                            );
+                                            new_node = NStack::Node([
+                                                Some(Annotated::new(old_root)),
+                                                None,
+                                                None,
+                                                None,
+                                            ]);
+                                        }
 
-                                    for _ in 0..depth {
-                                        let inner = mem::replace(
-                                            &mut new_node,
-                                            Self::new(),
-                                        );
-                                        new_node.0[0] = Handle::new_node(inner);
+                                        // Insert node
+                                        insert_node = Some((new_node, i + 1));
+                                        break;
                                     }
-
-                                    insert_new = Some(new_node);
                                 }
                             }
                         }
                     }
-                    _ => unreachable!("Seen node"),
+                }
+                // break out and insert
+                if let Some((new_node, index)) = insert_node {
+                    node[index] = Some(Annotated::new(new_node));
+                } else {
+                    unreachable!()
                 }
 
-                if let Some(new_node) = insert_new {
-                    self.0[i + 1] = Handle::new_node(new_node);
-                    Ok(PushResult::Ok)
-                } else {
-                    unreachable!();
-                }
+                Ok(Push::Ok)
             }
         }
     }
@@ -202,78 +230,64 @@ where
     /// Pop an element off the stack.
     ///
     /// Returns the popped element, if any.
-    pub fn pop(&mut self) -> io::Result<Option<T>> {
+    pub fn pop(&mut self) -> Result<Option<T>, S::Error> {
         match self._pop()? {
-            PopResult::Ok(t) | PopResult::Last(t) => Ok(Some(t)),
-            PopResult::None => Ok(None),
+            Pop::Ok(t) | Pop::Last(t) => Ok(Some(t)),
+            Pop::None => Ok(None),
         }
     }
 
-    fn _pop(&mut self) -> io::Result<PopResult<T>> {
-        for i in 0..N {
-            // reverse iteration
-            let i = N - i - 1;
+    fn _pop(&mut self) -> Result<Pop<T>, S::Error> {
+        let mut clear_node = None;
 
-            match self.0[i].handle_type() {
-                HandleType::None => (),
-                HandleType::Leaf => {
-                    let popped =
-                        mem::replace(&mut self.0[i], Handle::new_empty())
-                            .into_leaf();
-
-                    // did we remove the last element?
-                    return Ok(if i == 0 {
-                        PopResult::Last(popped)
-                    } else {
-                        PopResult::Ok(popped)
-                    });
-                }
-                HandleType::Node => match self.0[i].inner_mut()? {
-                    HandleMut::Node(ref mut n) => {
-                        match n._pop()? {
-                            PopResult::Ok(t) => return Ok(PopResult::Ok(t)),
-                            PopResult::Last(t) => {
-                                n.replace(Handle::new_empty());
-
-                                if i == 0 {
-                                    return Ok(PopResult::Last(t));
-                                } else {
-                                    return Ok(PopResult::Ok(t));
-                                }
+        match self {
+            NStack::Leaf(leaf) => {
+                for i in 0..N {
+                    // reverse
+                    let i = N - i - 1;
+                    match leaf[i].take() {
+                        Some(leaf) => {
+                            if i > 0 {
+                                return Ok(Pop::Ok(leaf));
+                            } else {
+                                return Ok(Pop::Last(leaf));
                             }
-                            PopResult::None => {
-                                unreachable!("invariant: no empty subnodes")
-                            }
-                        };
+                        }
+                        None => (),
                     }
-                    _ => unreachable!(
-                        "invariant: no nodes and leaves on same level"
-                    ),
-                },
+                }
+                Ok(Pop::None)
+            }
+            NStack::Node(node) => {
+                for i in 0..N {
+                    // reverse
+                    let i = N - i - 1;
+                    match node[i] {
+                        Some(ref mut subtree) => {
+                            match subtree.val_mut()?._pop()? {
+                                Pop::Ok(t) => return Ok(Pop::Ok(t)),
+                                Pop::Last(t) => {
+                                    if i == 0 {
+                                        return Ok(Pop::Last(t));
+                                    } else {
+                                        clear_node = Some((t, i));
+                                        break;
+                                    }
+                                }
+                                Pop::None => return Ok(Pop::None),
+                            }
+                        }
+                        None => (),
+                    }
+                }
+                if let Some((popped, clear_index)) = clear_node {
+                    node[clear_index] = None;
+                    Ok(Pop::Ok(popped))
+                } else {
+                    unreachable!()
+                }
             }
         }
-        Ok(PopResult::None)
-    }
-
-    /// Get a branch pointing to the element stored at index `idx`, if any
-    pub fn get<U>(&self, idx: U) -> io::Result<Option<Branch<Self, H>>>
-    where
-        U: Counter,
-        <Self as Compound<H>>::Annotation: Borrow<Cardinality<U>>,
-    {
-        Branch::new(self, &mut Nth::new(idx))
-    }
-
-    /// Get a mutable branch pointing to the element stored at index `idx`, if any
-    pub fn get_mut<U>(
-        &mut self,
-        idx: U,
-    ) -> io::Result<Option<BranchMut<Self, H>>>
-    where
-        U: Counter,
-        <Self as Compound<H>>::Annotation: Borrow<Cardinality<U>>,
-    {
-        BranchMut::new(self, &mut Nth::new(idx))
     }
 }
 
@@ -281,18 +295,26 @@ where
 mod tests {
     use super::*;
 
-    use kelvin::{quickcheck_stack, Blake2b};
+    use canonical_host::MemStore;
+    use microkelvin::{Cardinality, Nth};
+    // use kelvin::quickcheck_stack;
 
     #[test]
     fn trivial() {
-        let mut nt = NStack::<_, Cardinality<u64>, Blake2b>::new();
+        let mut nt = NStack::<u32, Cardinality, MemStore>::new();
+        assert_eq!(nt.pop().unwrap(), None);
+    }
+
+    #[test]
+    fn push_pop() {
+        let mut nt = NStack::<_, Cardinality, MemStore>::new();
         nt.push(8).unwrap();
         assert_eq!(nt.pop().unwrap(), Some(8));
     }
 
     #[test]
     fn double() {
-        let mut nt = NStack::<_, Cardinality<u64>, Blake2b>::new();
+        let mut nt = NStack::<_, Cardinality, MemStore>::new();
         nt.push(0).unwrap();
         nt.push(1).unwrap();
         assert_eq!(nt.pop().unwrap(), Some(1));
@@ -303,7 +325,7 @@ mod tests {
     fn multiple() {
         let n = 1024;
 
-        let mut nt = NStack::<_, Cardinality<u64>, Blake2b>::new();
+        let mut nt = NStack::<_, Cardinality, MemStore>::new();
 
         for i in 0..n {
             nt.push(i).unwrap();
@@ -314,43 +336,44 @@ mod tests {
         }
 
         assert_eq!(nt.pop().unwrap(), None);
-        nt.assert_correct_empty_state();
     }
 
     #[test]
-    fn get() {
-        let n = 128;
+    fn nth() {
+        let n: u64 = 1024;
 
-        let mut nt = NStack::<_, Cardinality<u64>, Blake2b>::new();
+        let mut nstack = NStack::<_, Cardinality, MemStore>::new();
 
         for i in 0..n {
-            println!("pushing {}", i);
-            nt.push(i).unwrap();
-
-            for o in 0..i {
-                assert_eq!(*nt.get(o).unwrap().unwrap(), o);
-            }
-            assert!(nt.get(i + 1).unwrap().is_none());
+            nstack.push(i).unwrap();
         }
+
+        for i in 0..n {
+            assert_eq!(*nstack.nth(i).unwrap().unwrap(), i);
+        }
+
+        assert!(nstack.nth(n).unwrap().is_none());
     }
 
     #[test]
-    fn get_mut() {
-        let n = 1024;
+    fn nth_mut() -> Result<(), <MemStore as Store>::Error> {
+        let n: u64 = 1024;
 
-        let mut nt = NStack::<_, Cardinality<u64>, Blake2b>::new();
+        let mut nstack = NStack::<_, Cardinality, MemStore>::new();
 
         for i in 0..n {
-            nt.push(i).unwrap();
+            nstack.push(i)?;
         }
 
         for i in 0..n {
-            *nt.get_mut(i).unwrap().unwrap() += 1;
+            *nstack.nth_mut(i)?.unwrap() += 1;
         }
 
         for i in 0..n {
-            assert_eq!(*nt.get(i).unwrap().unwrap(), i + 1);
+            assert_eq!(*nstack.nth(i)?.unwrap(), i + 1);
         }
+
+        Ok(())
     }
 
     // Assert that all branches are always of the same length
@@ -358,18 +381,18 @@ mod tests {
     fn branch_lengths() {
         let n = 256;
 
-        let mut nt = NStack::<_, Cardinality<u64>, Blake2b>::new();
+        let mut nt = NStack::<_, Cardinality, MemStore>::new();
 
         for i in 0..n {
             nt.push(i).unwrap();
         }
 
-        let length_zero = nt.get(0).unwrap().unwrap().levels().len();
+        let length_zero = nt.nth(0).unwrap().unwrap().len();
 
         for i in 1..n {
-            assert_eq!(length_zero, nt.get(i).unwrap().unwrap().levels().len())
+            assert_eq!(length_zero, nt.nth(i).unwrap().unwrap().len())
         }
     }
 
-    quickcheck_stack!(|| NStack::<_, Cardinality<u64>, Blake2b>::new());
+    // quickcheck_stack!(|| NStack::<_, Cardinality<u64>, MemStore>::new());
 }
