@@ -9,7 +9,7 @@ repository = "https://github.com/dusk-network/nstack"
 keywords = ["merkle", "datastructure", "stack"]
 
 [dependencies]
-microkelvin = { git = "https://github.com/dusk-network/microkelvin", branch = "main" }
+microkelvin = "0.4"
 canonical = "0.4"
 canonical_derive = "0.4"
 canonical_host = "0.4"
