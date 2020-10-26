@@ -4,6 +4,8 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
+#![feature(min_const_generics)]
+
 //! NStack
 //!
 //! A stack datastructure with indexed lookup.
@@ -12,15 +14,15 @@ use core::mem;
 use canonical::{Canon, Store};
 use canonical_derive::Canon;
 
-use microkelvin::{Annotated, Annotation, Child, ChildMut, Compound};
+use microkelvin::{Annotated, Associative, Child, ChildMut, Compound};
 
 const N: usize = 4;
 
 #[derive(Clone, Canon, Debug)]
 pub enum NStack<T, A, S>
 where
-    A: Canon<S> + Annotation<T>,
     T: Canon<S>,
+    A: Canon<S> + Associative<T>,
     S: Store,
 {
     Leaf([Option<T>; N]),
@@ -30,45 +32,11 @@ where
 impl<T, A, S> Compound<S> for NStack<T, A, S>
 where
     T: Canon<S>,
-    A: Canon<S> + Annotation<T>,
+    A: Canon<S> + Associative<T>,
     S: Store,
 {
     type Leaf = T;
     type Annotation = A;
-
-    fn annotation(&self) -> Self::Annotation {
-        match self {
-            NStack::Leaf([None, None, None, None]) => A::identity(),
-            NStack::Leaf([Some(a), None, None, None]) => A::from_leaf(a),
-            NStack::Leaf([Some(a), Some(b), None, None]) => {
-                A::from_leaf(a).op(&A::from_leaf(b))
-            }
-            NStack::Leaf([Some(a), Some(b), Some(c), None]) => {
-                A::from_leaf(a).op(&A::from_leaf(b)).op(&A::from_leaf(c))
-            }
-            NStack::Leaf([Some(a), Some(b), Some(c), Some(d)]) => {
-                let ab = A::from_leaf(a).op(&A::from_leaf(b));
-                let cd = A::from_leaf(c).op(&A::from_leaf(d));
-                ab.op(&cd)
-            }
-            NStack::Leaf(_) => unreachable!("Invalid leaf structure"),
-
-            NStack::Node([None, None, None, None]) => A::identity(),
-            NStack::Node([Some(a), None, None, None]) => a.annotation().clone(),
-            NStack::Node([Some(a), Some(b), None, None]) => {
-                a.annotation().clone().op(b.annotation())
-            }
-            NStack::Node([Some(a), Some(b), Some(c), None]) => {
-                a.annotation().clone().op(b.annotation()).op(c.annotation())
-            }
-            NStack::Node([Some(a), Some(b), Some(c), Some(d)]) => {
-                let ab = a.annotation().clone().op(b.annotation());
-                let cd = c.annotation().clone().op(d.annotation());
-                ab.op(&cd)
-            }
-            NStack::Node(_) => unreachable!("Invalid node structure"),
-        }
-    }
 
     fn child(&self, ofs: usize) -> Child<Self, S> {
         match (ofs, self) {
@@ -102,7 +70,7 @@ where
 impl<T, A, S> Default for NStack<T, A, S>
 where
     T: Canon<S>,
-    A: Canon<S> + Annotation<T>,
+    A: Canon<S> + Associative<T>,
     S: Store,
 {
     fn default() -> Self {
@@ -124,7 +92,7 @@ enum Pop<T> {
 impl<T, A, S> NStack<T, A, S>
 where
     T: Canon<S>,
-    A: Canon<S> + Annotation<T>,
+    A: Canon<S> + Associative<T>,
     S: Store,
 {
     /// Creates a new empty NStack
