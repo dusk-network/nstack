@@ -263,8 +263,9 @@ mod tests {
 
     use std::borrow::Borrow;
 
+    use canonical::Canon;
     use canonical_host::MemStore;
-    use microkelvin::{Associative, Cardinality, Max, Nth};
+    use microkelvin::{Annotation, Cardinality, Max, Nth};
 
     // Brach len
     const BLEN: usize = 5;
@@ -367,57 +368,81 @@ mod tests {
     }
 
     #[derive(Canon, Clone, Debug)]
-    struct MaxAndCardinality<K> {
+    struct MaxAndCardinality {
         cardinality: Cardinality,
-        max: Max<K>,
+        max: Max<u32>,
     }
 
-    impl<K> Borrow<Cardinality> for MaxAndCardinality<K> {
+    impl Borrow<Cardinality> for MaxAndCardinality {
         fn borrow(&self) -> &Cardinality {
             &self.cardinality
         }
     }
 
-    impl<K> Borrow<Max<K>> for MaxAndCardinality<K> {
-        fn borrow(&self) -> &Max<K> {
+    impl Borrow<Max<u32>> for MaxAndCardinality {
+        fn borrow(&self) -> &Max<u32> {
             &self.max
         }
     }
 
-    impl<K> Associative<K> for MaxAndCardinality<K>
+    impl Borrow<u32> for MaxAndCardinality {
+        fn borrow(&self) -> &u32 {
+            match &self.max {
+                Max::NegativeInfinity => &u32::min_value(),
+                Max::Maximum(m) => m,
+            }
+        }
+    }
+
+    impl<S> Annotation<NStack<u32, MaxAndCardinality, S>, S> for MaxAndCardinality
     where
-        K: Ord + Clone,
+        S: Store,
     {
         fn identity() -> Self {
-            MaxAndCardinality {
-                cardinality: <Cardinality as Associative<K>>::identity(),
-                max: <Max<K> as Associative<K>>::identity(),
-            }
+            let cardinality = <Cardinality as Annotation<
+                NStack<u32, MaxAndCardinality, S>,
+                S,
+            >>::identity();
+            let max = <Max<u32> as Annotation<
+                NStack<u32, MaxAndCardinality, S>,
+                S,
+            >>::identity();
+
+            Self { cardinality, max }
         }
 
-        fn from_leaf(leaf: &K) -> Self {
-            MaxAndCardinality {
-                cardinality: Associative::from_leaf(leaf),
-                max: Associative::from_leaf(leaf),
-            }
+        fn from_leaf(leaf: &u32) -> Self {
+            let cardinality = <Cardinality as Annotation<
+                NStack<u32, MaxAndCardinality, S>,
+                S,
+            >>::from_leaf(leaf);
+
+            let max = <Max<u32> as Annotation<
+                NStack<u32, MaxAndCardinality, S>,
+                S,
+            >>::from_leaf(leaf);
+
+            Self { cardinality, max }
         }
 
-        fn op(self, other: &Self) -> Self {
-            let MaxAndCardinality { cardinality, max } = self;
-            MaxAndCardinality {
-                cardinality: Associative::<K>::op(
-                    cardinality,
-                    &other.cardinality,
-                ),
-                max: Associative::<K>::op(max, &other.max),
-            }
+        fn from_node(node: &NStack<u32, MaxAndCardinality, S>) -> Self {
+            let cardinality = <Cardinality as Annotation<
+                NStack<u32, MaxAndCardinality, S>,
+                S,
+            >>::from_node(node);
+
+            let max = <Max<u32> as Annotation<
+                NStack<u32, MaxAndCardinality, S>,
+                S,
+            >>::from_node(node);
+
+            Self { cardinality, max }
         }
     }
 
     #[test]
     fn test_max_annotation() -> Result<(), <MemStore as Store>::Error> {
-        let mut stack: NStack<u32, MaxAndCardinality<u32>, MemStore> =
-            NStack::new();
+        let mut stack: NStack<u32, MaxAndCardinality, MemStore> = NStack::new();
 
         let n = 5;
 

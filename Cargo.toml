@@ -1,6 +1,6 @@
 [package]
 name = "nstack"
-version = "0.6.0"
+version = "0.6.1"
 authors = ["Kristoffer Ström <kristoffer@dusk.network>"]
 edition = "2018"
 description = "Arity 4 stack for the kelvin merkle toolkit"
@@ -9,7 +9,9 @@ repository = "https://github.com/dusk-network/nstack"
 keywords = ["merkle", "datastructure", "stack"]
 
 [dependencies]
-microkelvin = "0.4"
+microkelvin = "0.5"
 canonical = "0.4"
 canonical_derive = "0.4"
+
+[dev-dependencies]
 canonical_host = "0.4"
