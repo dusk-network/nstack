@@ -1,6 +1,6 @@
 [package]
 name = "nstack"
-version = "0.6.0"
+version = "0.6.1"
 authors = ["Kristoffer Ström <kristoffer@dusk.network>"]
 edition = "2018"
 description = "Arity 4 stack for the kelvin merkle toolkit"
