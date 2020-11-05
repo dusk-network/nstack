@@ -7,6 +7,7 @@
 //! NStack
 //!
 //! A stack datastructure with indexed lookup.
+#[cfg(feature = "host")]
 use core::mem;
 
 use canonical::{Canon, Store};
@@ -76,11 +77,13 @@ where
     }
 }
 
+#[cfg(feature = "host")]
 enum Push<T> {
     Ok,
     NoRoom { t: T, depth: usize },
 }
 
+#[cfg(feature = "host")]
 enum Pop<T> {
     Ok(T),
     Last(T),
@@ -99,6 +102,7 @@ where
     }
 
     /// Pushes a new element onto the stack
+    #[cfg(feature = "host")]
     pub fn push(&mut self, t: T) -> Result<(), S::Error> {
         match self._push(t)? {
             Push::Ok => Ok(()),
@@ -116,6 +120,7 @@ where
         }
     }
 
+    #[cfg(feature = "host")]
     fn _push(&mut self, t: T) -> Result<Push<T>, S::Error> {
         match self {
             NStack::Leaf(leaf) => {
@@ -196,6 +201,7 @@ where
     /// Pop an element off the stack.
     ///
     /// Returns the popped element, if any.
+    #[cfg(feature = "host")]
     pub fn pop(&mut self) -> Result<Option<T>, S::Error> {
         match self._pop()? {
             Pop::Ok(t) | Pop::Last(t) => Ok(Some(t)),
@@ -203,6 +209,7 @@ where
         }
     }
 
+    #[cfg(feature = "host")]
     fn _pop(&mut self) -> Result<Pop<T>, S::Error> {
         let mut clear_node = None;
 

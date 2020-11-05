@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 05-11-20
+### Added
+- Shield host requirements with feature
+
 ## [0.6.1] - 30-10-20
 ### Changed
 - update microkelvin  to `v0.5`
