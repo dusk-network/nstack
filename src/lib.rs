@@ -7,6 +7,8 @@
 //! NStack
 //!
 //! A stack datastructure with indexed lookup.
+#![no_std]
+
 use core::mem;
 
 use canonical::{Canon, Store};
@@ -261,7 +263,7 @@ where
 mod tests {
     use super::*;
 
-    use std::borrow::Borrow;
+    use core::borrow::Borrow;
 
     use canonical::Canon;
     use canonical_host::MemStore;
@@ -438,20 +440,5 @@ mod tests {
 
             Self { cardinality, max }
         }
-    }
-
-    #[test]
-    fn test_max_annotation() -> Result<(), <MemStore as Store>::Error> {
-        let mut stack: NStack<u32, MaxAndCardinality, MemStore> = NStack::new();
-
-        let n = 5;
-
-        for i in 0..n {
-            stack.push(i)?;
-
-            println!("{}", i);
-        }
-
-        Ok(())
     }
 }
