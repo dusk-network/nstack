@@ -269,9 +269,6 @@ mod tests {
     use canonical_host::MemStore;
     use microkelvin::{Annotation, Cardinality, Max, Nth};
 
-    // Brach len
-    const BLEN: usize = 5;
-
     #[test]
     fn trivial() {
         let mut nt = NStack::<u32, Cardinality, MemStore>::new();
@@ -322,10 +319,10 @@ mod tests {
         }
 
         for i in 0..n {
-            assert_eq!(*nstack.nth::<BLEN>(i).unwrap().unwrap(), i);
+            assert_eq!(*nstack.nth(i).unwrap().unwrap(), i);
         }
 
-        assert!(nstack.nth::<BLEN>(n).unwrap().is_none());
+        assert!(nstack.nth(n).unwrap().is_none());
     }
 
     #[test]
@@ -339,11 +336,11 @@ mod tests {
         }
 
         for i in 0..n {
-            *nstack.nth_mut::<BLEN>(i)?.unwrap() += 1;
+            *nstack.nth_mut(i)?.unwrap() += 1;
         }
 
         for i in 0..n {
-            assert_eq!(*nstack.nth::<BLEN>(i)?.unwrap(), i + 1);
+            assert_eq!(*nstack.nth(i)?.unwrap(), i + 1);
         }
 
         Ok(())
@@ -360,10 +357,10 @@ mod tests {
             nt.push(i)?;
         }
 
-        let length_zero = nt.nth::<BLEN>(0)?.unwrap().depth();
+        let length_zero = nt.nth(0)?.unwrap().depth();
 
         for i in 1..n {
-            assert_eq!(length_zero, nt.nth::<BLEN>(i)?.unwrap().depth())
+            assert_eq!(length_zero, nt.nth(i)?.unwrap().depth())
         }
 
         Ok(())
