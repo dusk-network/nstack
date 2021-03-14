@@ -11,7 +11,7 @@
 
 use core::mem;
 
-use canonical::{Canon, Store};
+use canonical::{Canon, CanonError};
 use canonical_derive::Canon;
 
 use microkelvin::{Annotated, Annotation, Child, ChildMut, Compound};
@@ -19,26 +19,19 @@ use microkelvin::{Annotated, Annotation, Child, ChildMut, Compound};
 const N: usize = 4;
 
 #[derive(Clone, Canon, Debug)]
-pub enum NStack<T, A, S>
-where
-    A: Canon<S>,
-    T: Canon<S>,
-    S: Store,
-{
+pub enum NStack<T, A> {
     Leaf([Option<T>; N]),
-    Node([Option<Annotated<NStack<T, A, S>, S>>; N]),
+    Node([Option<Annotated<NStack<T, A>, A>>; N]),
 }
 
-impl<T, A, S> Compound<S> for NStack<T, A, S>
+impl<T, A> Compound<A> for NStack<T, A>
 where
-    T: Canon<S>,
-    A: Canon<S>,
-    S: Store,
+    T: Canon,
+    A: Canon,
 {
     type Leaf = T;
-    type Annotation = A;
 
-    fn child(&self, ofs: usize) -> Child<Self, S> {
+    fn child(&self, ofs: usize) -> Child<Self, A> {
         match (ofs, self) {
             (0, NStack::Node([Some(a), _, _, _])) => Child::Node(a),
             (1, NStack::Node([_, Some(b), _, _])) => Child::Node(b),
@@ -52,7 +45,7 @@ where
         }
     }
 
-    fn child_mut(&mut self, ofs: usize) -> ChildMut<Self, S> {
+    fn child_mut(&mut self, ofs: usize) -> ChildMut<Self, A> {
         match (ofs, self) {
             (0, NStack::Node([Some(a), _, _, _])) => ChildMut::Node(a),
             (1, NStack::Node([_, Some(b), _, _])) => ChildMut::Node(b),
@@ -67,12 +60,7 @@ where
     }
 }
 
-impl<T, A, S> Default for NStack<T, A, S>
-where
-    T: Canon<S>,
-    A: Canon<S> + Annotation<Self, S>,
-    S: Store,
-{
+impl<T, A> Default for NStack<T, A> {
     fn default() -> Self {
         NStack::Leaf([None, None, None, None])
     }
@@ -89,11 +77,11 @@ enum Pop<T> {
     None,
 }
 
-impl<T, A, S> NStack<T, A, S>
+impl<T, A> NStack<T, A>
 where
-    T: Canon<S>,
-    A: Canon<S> + Annotation<Self, S>,
-    S: Store,
+    Self: Compound<A>,
+    T: Canon,
+    A: Canon + Annotation<<Self as Compound<A>>::Leaf>,
 {
     /// Creates a new empty NStack
     pub fn new() -> Self {
@@ -101,7 +89,7 @@ where
     }
 
     /// Pushes a new element onto the stack
-    pub fn push(&mut self, t: T) -> Result<(), S::Error> {
+    pub fn push(&mut self, t: T) -> Result<(), CanonError> {
         match self._push(t)? {
             Push::Ok => Ok(()),
             Push::NoRoom { t, .. } => {
@@ -118,7 +106,7 @@ where
         }
     }
 
-    fn _push(&mut self, t: T) -> Result<Push<T>, S::Error> {
+    fn _push(&mut self, t: T) -> Result<Push<T>, CanonError> {
         match self {
             NStack::Leaf(leaf) => {
                 for i in 0..N {
@@ -198,14 +186,14 @@ where
     /// Pop an element off the stack.
     ///
     /// Returns the popped element, if any.
-    pub fn pop(&mut self) -> Result<Option<T>, S::Error> {
+    pub fn pop(&mut self) -> Result<Option<T>, CanonError> {
         match self._pop()? {
             Pop::Ok(t) | Pop::Last(t) => Ok(Some(t)),
             Pop::None => Ok(None),
         }
     }
 
-    fn _pop(&mut self) -> Result<Pop<T>, S::Error> {
+    fn _pop(&mut self) -> Result<Pop<T>, CanonError> {
         let mut clear_node = None;
 
         match self {
@@ -263,28 +251,24 @@ where
 mod tests {
     use super::*;
 
-    use core::borrow::Borrow;
-
-    use canonical::Canon;
-    use canonical_host::MemStore;
-    use microkelvin::{Annotation, Cardinality, Max, Nth};
+    use microkelvin::{Cardinality, Nth};
 
     #[test]
     fn trivial() {
-        let mut nt = NStack::<u32, Cardinality, MemStore>::new();
+        let mut nt = NStack::<u32, Cardinality>::new();
         assert_eq!(nt.pop().unwrap(), None);
     }
 
     #[test]
     fn push_pop() {
-        let mut nt = NStack::<_, Cardinality, MemStore>::new();
+        let mut nt = NStack::<_, Cardinality>::new();
         nt.push(8).unwrap();
         assert_eq!(nt.pop().unwrap(), Some(8));
     }
 
     #[test]
     fn double() {
-        let mut nt = NStack::<_, Cardinality, MemStore>::new();
+        let mut nt = NStack::<_, Cardinality>::new();
         nt.push(0).unwrap();
         nt.push(1).unwrap();
         assert_eq!(nt.pop().unwrap(), Some(1));
@@ -295,7 +279,7 @@ mod tests {
     fn multiple() {
         let n = 1024;
 
-        let mut nt = NStack::<_, Cardinality, MemStore>::new();
+        let mut nt = NStack::<_, Cardinality>::new();
 
         for i in 0..n {
             nt.push(i).unwrap();
@@ -312,7 +296,7 @@ mod tests {
     fn nth() {
         let n: u64 = 1024;
 
-        let mut nstack = NStack::<_, Cardinality, MemStore>::new();
+        let mut nstack = NStack::<_, Cardinality>::new();
 
         for i in 0..n {
             nstack.push(i).unwrap();
@@ -326,10 +310,10 @@ mod tests {
     }
 
     #[test]
-    fn nth_mut() -> Result<(), <MemStore as Store>::Error> {
+    fn nth_mut() -> Result<(), CanonError> {
         let n: u64 = 1024;
 
-        let mut nstack = NStack::<_, Cardinality, MemStore>::new();
+        let mut nstack = NStack::<_, Cardinality>::new();
 
         for i in 0..n {
             nstack.push(i)?;
@@ -348,10 +332,10 @@ mod tests {
 
     // Assert that all branches are always of the same length
     #[test]
-    fn branch_lengths() -> Result<(), <MemStore as Store>::Error> {
+    fn branch_lengths() -> Result<(), CanonError> {
         let n = 256;
 
-        let mut nt = NStack::<_, Cardinality, MemStore>::new();
+        let mut nt = NStack::<_, Cardinality>::new();
 
         for i in 0..n {
             nt.push(i)?;
@@ -364,78 +348,5 @@ mod tests {
         }
 
         Ok(())
-    }
-
-    #[derive(Canon, Clone, Debug)]
-    struct MaxAndCardinality {
-        cardinality: Cardinality,
-        max: Max<u32>,
-    }
-
-    impl Borrow<Cardinality> for MaxAndCardinality {
-        fn borrow(&self) -> &Cardinality {
-            &self.cardinality
-        }
-    }
-
-    impl Borrow<Max<u32>> for MaxAndCardinality {
-        fn borrow(&self) -> &Max<u32> {
-            &self.max
-        }
-    }
-
-    impl Borrow<u32> for MaxAndCardinality {
-        fn borrow(&self) -> &u32 {
-            match &self.max {
-                Max::NegativeInfinity => &u32::min_value(),
-                Max::Maximum(m) => m,
-            }
-        }
-    }
-
-    impl<S> Annotation<NStack<u32, MaxAndCardinality, S>, S> for MaxAndCardinality
-    where
-        S: Store,
-    {
-        fn identity() -> Self {
-            let cardinality = <Cardinality as Annotation<
-                NStack<u32, MaxAndCardinality, S>,
-                S,
-            >>::identity();
-            let max = <Max<u32> as Annotation<
-                NStack<u32, MaxAndCardinality, S>,
-                S,
-            >>::identity();
-
-            Self { cardinality, max }
-        }
-
-        fn from_leaf(leaf: &u32) -> Self {
-            let cardinality = <Cardinality as Annotation<
-                NStack<u32, MaxAndCardinality, S>,
-                S,
-            >>::from_leaf(leaf);
-
-            let max = <Max<u32> as Annotation<
-                NStack<u32, MaxAndCardinality, S>,
-                S,
-            >>::from_leaf(leaf);
-
-            Self { cardinality, max }
-        }
-
-        fn from_node(node: &NStack<u32, MaxAndCardinality, S>) -> Self {
-            let cardinality = <Cardinality as Annotation<
-                NStack<u32, MaxAndCardinality, S>,
-                S,
-            >>::from_node(node);
-
-            let max = <Max<u32> as Annotation<
-                NStack<u32, MaxAndCardinality, S>,
-                S,
-            >>::from_node(node);
-
-            Self { cardinality, max }
-        }
     }
 }
