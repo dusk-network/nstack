@@ -14,7 +14,9 @@ use core::mem;
 use canonical::{Canon, CanonError};
 use canonical_derive::Canon;
 
-use microkelvin::{Annotated, Annotation, Child, ChildMut, Compound};
+use microkelvin::{
+    Annotated, Child, ChildMut, Combine, Compound, MutableLeaves,
+};
 
 const N: usize = 4;
 
@@ -60,6 +62,8 @@ where
     }
 }
 
+impl<T, A> MutableLeaves for NStack<T, A> {}
+
 impl<T, A> Default for NStack<T, A> {
     fn default() -> Self {
         NStack::Leaf([None, None, None, None])
@@ -81,7 +85,7 @@ impl<T, A> NStack<T, A>
 where
     Self: Compound<A>,
     T: Canon,
-    A: Canon + Annotation<<Self as Compound<A>>::Leaf>,
+    A: Canon + Combine<Self, A>,
 {
     /// Creates a new empty NStack
     pub fn new() -> Self {
