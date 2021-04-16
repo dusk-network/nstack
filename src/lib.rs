@@ -205,15 +205,12 @@ where
                 for i in 0..N {
                     // reverse
                     let i = N - i - 1;
-                    match leaf[i].take() {
-                        Some(leaf) => {
-                            if i > 0 {
-                                return Ok(Pop::Ok(leaf));
-                            } else {
-                                return Ok(Pop::Last(leaf));
-                            }
+                    if let Some(leaf) = leaf[i].take() {
+                        if i > 0 {
+                            return Ok(Pop::Ok(leaf));
+                        } else {
+                            return Ok(Pop::Last(leaf));
                         }
-                        None => (),
                     }
                 }
                 Ok(Pop::None)
@@ -222,22 +219,19 @@ where
                 for i in 0..N {
                     // reverse
                     let i = N - i - 1;
-                    match node[i] {
-                        Some(ref mut subtree) => {
-                            match subtree.val_mut()?._pop()? {
-                                Pop::Ok(t) => return Ok(Pop::Ok(t)),
-                                Pop::Last(t) => {
-                                    if i == 0 {
-                                        return Ok(Pop::Last(t));
-                                    } else {
-                                        clear_node = Some((t, i));
-                                        break;
-                                    }
+                    if let Some(ref mut subtree) = node[i] {
+                        match subtree.val_mut()?._pop()? {
+                            Pop::Ok(t) => return Ok(Pop::Ok(t)),
+                            Pop::Last(t) => {
+                                if i == 0 {
+                                    return Ok(Pop::Last(t));
+                                } else {
+                                    clear_node = Some((t, i));
+                                    break;
                                 }
-                                Pop::None => return Ok(Pop::None),
                             }
+                            Pop::None => return Ok(Pop::None),
                         }
-                        None => (),
                     }
                 }
                 if let Some((popped, clear_index)) = clear_node {
@@ -254,8 +248,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    use microkelvin::{Cardinality, Nth};
+    use core::borrow::Borrow;
+    use microkelvin::{Annotation, Cardinality, Combine, Keyed, MaxKey, Nth};
 
     #[test]
     fn trivial() {
@@ -352,5 +346,61 @@ mod tests {
         }
 
         Ok(())
+    }
+
+    #[derive(Canon, Clone, Debug)]
+    struct MaxAndCardinality<K> {
+        cardinality: Cardinality,
+        max: MaxKey<K>,
+    }
+
+    impl<K> Default for MaxAndCardinality<K> {
+        fn default() -> Self {
+            Self {
+                max: Default::default(),
+                cardinality: Default::default(),
+            }
+        }
+    }
+
+    impl<K> Borrow<Cardinality> for MaxAndCardinality<K> {
+        fn borrow(&self) -> &Cardinality {
+            &self.cardinality
+        }
+    }
+
+    impl<K> Borrow<MaxKey<K>> for MaxAndCardinality<K> {
+        fn borrow(&self) -> &MaxKey<K> {
+            &self.max
+        }
+    }
+
+    impl<K, L> Annotation<L> for MaxAndCardinality<K>
+    where
+        L: Keyed<K>,
+        K: Clone,
+    {
+        fn from_leaf(leaf: &L) -> Self {
+            Self {
+                cardinality: Cardinality::from_leaf(leaf),
+                max: MaxKey::from_leaf(leaf),
+            }
+        }
+    }
+
+    impl<C, A, K> Combine<C, A> for MaxAndCardinality<K>
+    where
+        C: Compound<A>,
+        C::Leaf: Keyed<K> + Clone,
+        A: Borrow<Cardinality> + Borrow<MaxKey<K>>,
+        A: Annotation<C::Leaf>,
+        K: Clone + Ord,
+    {
+        fn combine(node: &C) -> Self {
+            Self {
+                cardinality: Cardinality::combine(node),
+                max: MaxKey::combine(node),
+            }
+        }
     }
 }
