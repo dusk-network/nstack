@@ -12,10 +12,10 @@ The elements are accessed with the help of the `Nth` annotation-helper from micr
 
 The general structure of `nstack` is a 4-way splitting tree that is always populated from the "bottom left".
 
-As new leaves are added, they get added to the right of the last leaf, creating a new root level on top when neccesary.
-
-The leaves of the tree are always located at the same depth relative to the root.
+As the user pushes new leaves to the structure, they get added to the right of the last leaf, creating a new root level on top when neccesary.
 
 Here's a representation, using width of 2 instead of 4 for easier visualization.
+
+As noted above the leaves of the tree are always located at the same depth relative to the root.
 
 ![A visual representation of the NStack structure](nstack.png "Nstack structure")
