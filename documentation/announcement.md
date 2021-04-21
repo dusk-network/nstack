@@ -1,4 +1,4 @@
-# Announcing nstack 0.8-rc.0
+# Announcing nstack 0.8
 
 Powering the zero knowledge proofs used in dusk network is a particular datastructure called nstack. 
 
