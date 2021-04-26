@@ -8,7 +8,7 @@
 //!
 //! A stack datastructure with indexed lookup.
 #![no_std]
-
+#![allow(clippy::large_enum_variant)]
 use core::mem;
 
 use canonical::{Canon, CanonError};
@@ -20,6 +20,9 @@ use microkelvin::{
 
 const N: usize = 4;
 
+// Clippy complains about the difference in size between the enum variants, however since the
+// most common case is the larger enum, and node traversal should be fast, we trade memory for
+// speed here.
 #[derive(Clone, Canon, Debug)]
 pub enum NStack<T, A> {
     Leaf([Option<T>; N]),
@@ -113,16 +116,16 @@ where
     fn _push(&mut self, t: T) -> Result<Push<T>, CanonError> {
         match self {
             NStack::Leaf(leaf) => {
-                for i in 0..N {
-                    match leaf[i] {
+                for mut item in leaf.iter_mut() {
+                    match item {
                         ref mut empty @ None => {
-                            *empty = Some(t);
+                            **empty = Some(t);
                             return Ok(Push::Ok);
                         }
                         Some(_) => (),
                     }
                 }
-                return Ok(Push::NoRoom { t, depth: 0 });
+                Ok(Push::NoRoom { t, depth: 0 })
             }
             NStack::Node(node) => {
                 let mut insert_node = None;

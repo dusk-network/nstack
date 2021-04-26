@@ -9,16 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.8.0] - 2021-04-21
 
-### Added
-- Release announcement
-
 ### Changed
-- Change microkelvin and canonical versions to 0.6 and 0.7 respectively.
+- Change microkelvin and canonical versions to 0.6 and 0.7 respectively
 
 ## [0.7.0] - 2021-01-25
 
 ### Changed
-- Change microkelvin and canonical versions to 0.5 and 0.6 respectively.
+- Change microkelvin and canonical versions to 0.5 and 0.6 respectively
 
 ## [0.6.1] - 2020-10-30
 
@@ -32,7 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Change microkelvin and canonical to version 0.4
 
-[Unreleased]: https://github.com/dusk-network/nstack/compare/v-0.8.0...HEAD
+[Unreleased]: https://github.com/dusk-network/nstack/compare/v0.8.0...HEAD
 [0.8.0]: https://github.com/dusk-network/nstack/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/dusk-network/nstack/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/dusk-network/nstack/compare/v0.6.0...v0.6.1
