@@ -9,7 +9,7 @@ repository = "https://github.com/dusk-network/nstack"
 keywords = ["merkle", "datastructure", "stack"]
 
 [dependencies]
-microkelvin = "0.8"
+microkelvin = "0.9.0-rc"
 canonical = "0.6"
 canonical_derive = "0.6"
 

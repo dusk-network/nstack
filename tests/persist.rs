@@ -7,41 +7,45 @@
 #[cfg(feature = "persistance")]
 mod persist {
 
-    use microkelvin::{BackendCtor, Compound, DiskBackend, Persistance};
+    use microkelvin::{
+        BackendCtor, Compound, DiskBackend, PersistError, Persistance,
+    };
     use nstack::NStack;
 
     #[test]
-    fn persist_across_threads() {
+    fn persist_across_threads() -> Result<(), PersistError> {
         let n: u64 = 1024;
 
         let mut stack = NStack::<u64, ()>::new();
 
         for i in 0..n {
-            stack.push(i).unwrap();
+            stack.push(i)?;
         }
 
-        let backend = BackendCtor::new(|| DiskBackend::ephemeral().unwrap());
-        let persisted = Persistance::persist(&backend, &stack).unwrap();
+        let backend = BackendCtor::new(|| DiskBackend::ephemeral());
+        let persisted = Persistance::persist(&backend, &stack)?;
 
         // it should now be available from other threads
 
         std::thread::spawn(move || {
-            let restored_generic = persisted.restore().unwrap();
+            let restored_generic = persisted.restore()?;
 
             let mut restored: NStack<u64, ()> =
-                NStack::from_generic(&restored_generic).unwrap();
+                NStack::from_generic(&restored_generic)?;
 
             for i in 0..n {
-                assert_eq!(restored.pop().unwrap(), Some(n - i - 1));
+                assert_eq!(restored.pop()?, Some(n - i - 1));
             }
+            Ok(()) as Result<(), PersistError>
         })
         .join()
-        .unwrap();
+        .expect("thread to join cleanly")?;
 
         // then empty the original
 
         for i in 0..n {
-            assert_eq!(stack.pop().unwrap(), Some(n - i - 1));
+            assert_eq!(stack.pop()?, Some(n - i - 1));
         }
+        Ok(())
     }
 }

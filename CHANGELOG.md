@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Add microkelvin persistance feature and integration
 
+### Change
+- Change all `unwrap`s in tests to `?`
+
 ## [0.8.0] - 2021-04-21
 
 ### Changed

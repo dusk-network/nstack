@@ -75,11 +75,9 @@ where
 
         match child_iter.next() {
             // empty case
-            None => return Ok(NStack::default()),
+            None => Ok(NStack::default()),
             // Empty nodes are invalid in NStack
-            Some(GenericChild::Empty) => {
-                return Err(CanonError::InvalidEncoding)
-            }
+            Some(GenericChild::Empty) => Err(CanonError::InvalidEncoding),
             Some(GenericChild::Leaf(leaf)) => {
                 let mut leaves = [Some(leaf.cast()?), None, None, None];
                 for (i, child) in child_iter.enumerate() {

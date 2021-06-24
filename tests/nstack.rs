@@ -13,59 +13,64 @@ use core::borrow::Borrow;
 use microkelvin::*;
 
 #[test]
-fn trivial() {
+fn trivial() -> Result<(), CanonError> {
     let mut nt = NStack::<u32, Cardinality>::new();
-    assert_eq!(nt.pop().unwrap(), None);
+    assert_eq!(nt.pop()?, None);
+    Ok(())
 }
 
 #[test]
-fn push_pop() {
+fn push_pop() -> Result<(), CanonError> {
     let mut nt = NStack::<_, Cardinality>::new();
-    nt.push(8).unwrap();
-    assert_eq!(nt.pop().unwrap(), Some(8));
+    nt.push(8)?;
+    assert_eq!(nt.pop()?, Some(8));
+    Ok(())
 }
 
 #[test]
-fn double() {
+fn double() -> Result<(), CanonError> {
     let mut nt = NStack::<_, Cardinality>::new();
-    nt.push(0).unwrap();
-    nt.push(1).unwrap();
-    assert_eq!(nt.pop().unwrap(), Some(1));
-    assert_eq!(nt.pop().unwrap(), Some(0));
+    nt.push(0)?;
+    nt.push(1)?;
+    assert_eq!(nt.pop()?, Some(1));
+    assert_eq!(nt.pop()?, Some(0));
+    Ok(())
 }
 
 #[test]
-fn multiple() {
+fn multiple() -> Result<(), CanonError> {
     let n = 1024;
 
     let mut nt = NStack::<_, Cardinality>::new();
 
     for i in 0..n {
-        nt.push(i).unwrap();
+        nt.push(i)?;
     }
 
     for i in 0..n {
-        assert_eq!(nt.pop().unwrap(), Some(n - i - 1));
+        assert_eq!(nt.pop()?, Some(n - i - 1));
     }
 
-    assert_eq!(nt.pop().unwrap(), None);
+    assert_eq!(nt.pop()?, None);
+    Ok(())
 }
 
 #[test]
-fn nth() {
+fn nth() -> Result<(), CanonError> {
     let n: u64 = 1024;
 
     let mut nstack = NStack::<_, Cardinality>::new();
 
     for i in 0..n {
-        nstack.push(i).unwrap();
+        nstack.push(i)?;
     }
 
     for i in 0..n {
-        assert_eq!(*nstack.nth(i).unwrap().unwrap(), i);
+        assert_eq!(*nstack.nth(i)?.expect("Some(_)"), i);
     }
 
-    assert!(nstack.nth(n).unwrap().is_none());
+    assert!(nstack.nth(n)?.is_none());
+    Ok(())
 }
 
 #[test]
@@ -79,11 +84,11 @@ fn nth_mut() -> Result<(), CanonError> {
     }
 
     for i in 0..n {
-        *nstack.nth_mut(i)?.unwrap() += 1;
+        *nstack.nth_mut(i)?.expect("Some(_)") += 1;
     }
 
     for i in 0..n {
-        assert_eq!(*nstack.nth(i)?.unwrap(), i + 1);
+        assert_eq!(*nstack.nth(i)?.expect("Some(_)"), i + 1);
     }
 
     Ok(())
@@ -100,10 +105,10 @@ fn branch_lengths() -> Result<(), CanonError> {
         nt.push(i)?;
     }
 
-    let length_zero = nt.nth(0)?.unwrap().depth();
+    let length_zero = nt.nth(0)?.expect("Some(_)").depth();
 
     for i in 1..n {
-        assert_eq!(length_zero, nt.nth(i)?.unwrap().depth())
+        assert_eq!(length_zero, nt.nth(i)?.expect("Some(_)").depth())
     }
 
     Ok(())
