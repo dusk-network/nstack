@@ -15,7 +15,8 @@ use canonical::{Canon, CanonError};
 use canonical_derive::Canon;
 
 use microkelvin::{
-    Annotated, Child, ChildMut, Combine, Compound, MutableLeaves,
+    Annotation, Child, ChildMut, Compound, GenericChild, GenericTree, Link,
+    MutableLeaves,
 };
 
 const N: usize = 4;
@@ -24,15 +25,20 @@ const N: usize = 4;
 // most common case is the larger enum, and node traversal should be fast, we trade memory for
 // speed here.
 #[derive(Clone, Canon, Debug)]
-pub enum NStack<T, A> {
+pub enum NStack<T, A>
+where
+    Self: Compound<A>,
+    A: Annotation<<Self as Compound<A>>::Leaf>,
+    T: Canon,
+{
     Leaf([Option<T>; N]),
-    Node([Option<Annotated<NStack<T, A>, A>>; N]),
+    Node([Option<Link<NStack<T, A>, A>>; N]),
 }
 
 impl<T, A> Compound<A> for NStack<T, A>
 where
     T: Canon,
-    A: Canon,
+    A: Canon + Annotation<T>,
 {
     type Leaf = T;
 
@@ -63,11 +69,59 @@ where
             _ => ChildMut::EndOfNode,
         }
     }
+
+    fn from_generic(tree: &GenericTree) -> Result<Self, CanonError> {
+        let mut child_iter = tree.children().iter();
+
+        match child_iter.next() {
+            // empty case
+            None => Ok(NStack::default()),
+            // Empty nodes are invalid in NStack
+            Some(GenericChild::Empty) => Err(CanonError::InvalidEncoding),
+            Some(GenericChild::Leaf(leaf)) => {
+                let mut leaves = [Some(leaf.cast()?), None, None, None];
+                for (i, child) in child_iter.enumerate() {
+                    if let GenericChild::Leaf(leaf) = child {
+                        leaves[i + 1] = Some(leaf.cast()?);
+                    } else {
+                        return Err(CanonError::InvalidEncoding);
+                    }
+                }
+                Ok(NStack::Leaf(leaves))
+            }
+            Some(GenericChild::Link(id, anno)) => {
+                let mut links = [
+                    Some(Link::new_persisted(*id, anno.cast()?)),
+                    None,
+                    None,
+                    None,
+                ];
+                for (i, child) in child_iter.enumerate() {
+                    if let GenericChild::Link(id, anno) = child {
+                        links[i + 1] =
+                            Some(Link::new_persisted(*id, anno.cast()?));
+                    } else {
+                        return Err(CanonError::InvalidEncoding);
+                    }
+                }
+                Ok(NStack::Node(links))
+            }
+        }
+    }
 }
 
-impl<T, A> MutableLeaves for NStack<T, A> {}
+impl<T, A> MutableLeaves for NStack<T, A>
+where
+    A: Annotation<T> + Canon,
+    T: Canon,
+{
+}
 
-impl<T, A> Default for NStack<T, A> {
+impl<T, A> Default for NStack<T, A>
+where
+    A: Annotation<T> + Canon,
+    T: Canon,
+{
     fn default() -> Self {
         NStack::Leaf([None, None, None, None])
     }
@@ -88,7 +142,7 @@ impl<T, A> NStack<T, A>
 where
     Self: Compound<A>,
     T: Canon,
-    A: Canon + Combine<Self, A>,
+    A: Canon + Annotation<<Self as Compound<A>>::Leaf> + Annotation<T>,
 {
     /// Creates a new empty NStack
     pub fn new() -> Self {
@@ -103,7 +157,7 @@ where
                 let old_root = mem::take(self);
 
                 let mut new_node = [None, None, None, None];
-                new_node[0] = Some(Annotated::new(old_root));
+                new_node[0] = Some(Link::new(old_root));
 
                 *self = NStack::Node(new_node);
 
@@ -137,7 +191,7 @@ where
                     match &mut node[i] {
                         None => (),
                         Some(annotated) => {
-                            match annotated.val_mut()?._push(t)? {
+                            match annotated.compound_mut()?._push(t)? {
                                 Push::Ok => return Ok(Push::Ok),
                                 Push::NoRoom { t, depth } => {
                                     // Are we in the last node
@@ -162,7 +216,7 @@ where
                                                 NStack::new(),
                                             );
                                             new_node = NStack::Node([
-                                                Some(Annotated::new(old_root)),
+                                                Some(Link::new(old_root)),
                                                 None,
                                                 None,
                                                 None,
@@ -180,7 +234,7 @@ where
                 }
                 // break out and insert
                 if let Some((new_node, index)) = insert_node {
-                    node[index] = Some(Annotated::new(new_node));
+                    node[index] = Some(Link::new(new_node));
                 } else {
                     unreachable!()
                 }
@@ -223,7 +277,7 @@ where
                     // reverse
                     let i = N - i - 1;
                     if let Some(ref mut subtree) = node[i] {
-                        match subtree.val_mut()?._pop()? {
+                        match subtree.compound_mut()?._pop()? {
                             Pop::Ok(t) => return Ok(Pop::Ok(t)),
                             Pop::Last(t) => {
                                 if i == 0 {
@@ -243,166 +297,6 @@ where
                 } else {
                     unreachable!()
                 }
-            }
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use core::borrow::Borrow;
-    use microkelvin::{Annotation, Cardinality, Combine, Keyed, MaxKey, Nth};
-
-    #[test]
-    fn trivial() {
-        let mut nt = NStack::<u32, Cardinality>::new();
-        assert_eq!(nt.pop().unwrap(), None);
-    }
-
-    #[test]
-    fn push_pop() {
-        let mut nt = NStack::<_, Cardinality>::new();
-        nt.push(8).unwrap();
-        assert_eq!(nt.pop().unwrap(), Some(8));
-    }
-
-    #[test]
-    fn double() {
-        let mut nt = NStack::<_, Cardinality>::new();
-        nt.push(0).unwrap();
-        nt.push(1).unwrap();
-        assert_eq!(nt.pop().unwrap(), Some(1));
-        assert_eq!(nt.pop().unwrap(), Some(0));
-    }
-
-    #[test]
-    fn multiple() {
-        let n = 1024;
-
-        let mut nt = NStack::<_, Cardinality>::new();
-
-        for i in 0..n {
-            nt.push(i).unwrap();
-        }
-
-        for i in 0..n {
-            assert_eq!(nt.pop().unwrap(), Some(n - i - 1));
-        }
-
-        assert_eq!(nt.pop().unwrap(), None);
-    }
-
-    #[test]
-    fn nth() {
-        let n: u64 = 1024;
-
-        let mut nstack = NStack::<_, Cardinality>::new();
-
-        for i in 0..n {
-            nstack.push(i).unwrap();
-        }
-
-        for i in 0..n {
-            assert_eq!(*nstack.nth(i).unwrap().unwrap(), i);
-        }
-
-        assert!(nstack.nth(n).unwrap().is_none());
-    }
-
-    #[test]
-    fn nth_mut() -> Result<(), CanonError> {
-        let n: u64 = 1024;
-
-        let mut nstack = NStack::<_, Cardinality>::new();
-
-        for i in 0..n {
-            nstack.push(i)?;
-        }
-
-        for i in 0..n {
-            *nstack.nth_mut(i)?.unwrap() += 1;
-        }
-
-        for i in 0..n {
-            assert_eq!(*nstack.nth(i)?.unwrap(), i + 1);
-        }
-
-        Ok(())
-    }
-
-    // Assert that all branches are always of the same length
-    #[test]
-    fn branch_lengths() -> Result<(), CanonError> {
-        let n = 256;
-
-        let mut nt = NStack::<_, Cardinality>::new();
-
-        for i in 0..n {
-            nt.push(i)?;
-        }
-
-        let length_zero = nt.nth(0)?.unwrap().depth();
-
-        for i in 1..n {
-            assert_eq!(length_zero, nt.nth(i)?.unwrap().depth())
-        }
-
-        Ok(())
-    }
-
-    #[derive(Canon, Clone, Debug)]
-    struct MaxAndCardinality<K> {
-        cardinality: Cardinality,
-        max: MaxKey<K>,
-    }
-
-    impl<K> Default for MaxAndCardinality<K> {
-        fn default() -> Self {
-            Self {
-                max: Default::default(),
-                cardinality: Default::default(),
-            }
-        }
-    }
-
-    impl<K> Borrow<Cardinality> for MaxAndCardinality<K> {
-        fn borrow(&self) -> &Cardinality {
-            &self.cardinality
-        }
-    }
-
-    impl<K> Borrow<MaxKey<K>> for MaxAndCardinality<K> {
-        fn borrow(&self) -> &MaxKey<K> {
-            &self.max
-        }
-    }
-
-    impl<K, L> Annotation<L> for MaxAndCardinality<K>
-    where
-        L: Keyed<K>,
-        K: Clone,
-    {
-        fn from_leaf(leaf: &L) -> Self {
-            Self {
-                cardinality: Cardinality::from_leaf(leaf),
-                max: MaxKey::from_leaf(leaf),
-            }
-        }
-    }
-
-    impl<C, A, K> Combine<C, A> for MaxAndCardinality<K>
-    where
-        C: Compound<A>,
-        C::Leaf: Keyed<K> + Clone,
-        A: Borrow<Cardinality> + Borrow<MaxKey<K>>,
-        A: Annotation<C::Leaf>,
-        K: Clone + Ord,
-    {
-        fn combine(node: &C) -> Self {
-            Self {
-                cardinality: Cardinality::combine(node),
-                max: MaxKey::combine(node),
             }
         }
     }
