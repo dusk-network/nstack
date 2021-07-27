@@ -191,7 +191,7 @@ where
                     match &mut node[i] {
                         None => (),
                         Some(annotated) => {
-                            match annotated.compound_mut()?._push(t)? {
+                            match annotated.inner_mut()?._push(t)? {
                                 Push::Ok => return Ok(Push::Ok),
                                 Push::NoRoom { t, depth } => {
                                     // Are we in the last node
@@ -277,7 +277,7 @@ where
                     // reverse
                     let i = N - i - 1;
                     if let Some(ref mut subtree) = node[i] {
-                        match subtree.compound_mut()?._pop()? {
+                        match subtree.inner_mut()?._pop()? {
                             Pop::Ok(t) => return Ok(Pop::Ok(t)),
                             Pop::Last(t) => {
                                 if i == 0 {
