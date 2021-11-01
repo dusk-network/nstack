@@ -11,12 +11,12 @@
 #![allow(clippy::large_enum_variant)]
 use core::mem;
 
-use canonical::{Canon, CanonError};
-use canonical_derive::Canon;
-
 use microkelvin::{
-    Annotation, Child, ChildMut, Compound, GenericChild, GenericTree, Link,
-    MutableLeaves,
+    Annotation, ArchivedChild, ArchivedCompound, Child, ChildMut, Compound,
+    Link, MutableLeaves,
+};
+use rkyv::{
+    option::ArchivedOption, Archive, Deserialize, Infallible, Serialize,
 };
 
 const N: usize = 4;
@@ -24,12 +24,11 @@ const N: usize = 4;
 // Clippy complains about the difference in size between the enum variants, however since the
 // most common case is the larger enum, and node traversal should be fast, we trade memory for
 // speed here.
-#[derive(Clone, Canon, Debug)]
+#[derive(Clone, Debug, Archive, Serialize, Deserialize)]
 pub enum NStack<T, A>
 where
     Self: Compound<A>,
     A: Annotation<<Self as Compound<A>>::Leaf>,
-    T: Canon,
 {
     Leaf([Option<T>; N]),
     Node([Option<Link<NStack<T, A>, A>>; N]),
@@ -37,8 +36,7 @@ where
 
 impl<T, A> Compound<A> for NStack<T, A>
 where
-    T: Canon,
-    A: Canon + Annotation<T>,
+    A: Annotation<T>,
 {
     type Leaf = T;
 
@@ -69,58 +67,49 @@ where
             _ => ChildMut::EndOfNode,
         }
     }
+}
 
-    fn from_generic(tree: &GenericTree) -> Result<Self, CanonError> {
-        let mut child_iter = tree.children().iter();
-
-        match child_iter.next() {
-            // empty case
-            None => Ok(NStack::default()),
-            // Empty nodes are invalid in NStack
-            Some(GenericChild::Empty) => Err(CanonError::InvalidEncoding),
-            Some(GenericChild::Leaf(leaf)) => {
-                let mut leaves = [Some(leaf.cast()?), None, None, None];
-                for (i, child) in child_iter.enumerate() {
-                    if let GenericChild::Leaf(leaf) = child {
-                        leaves[i + 1] = Some(leaf.cast()?);
-                    } else {
-                        return Err(CanonError::InvalidEncoding);
-                    }
-                }
-                Ok(NStack::Leaf(leaves))
+impl<T, A> ArchivedCompound<NStack<T, A>, A> for ArchivedNStack<T, A>
+where
+    T: Archive,
+    A: Annotation<T>,
+{
+    fn child(&self, ofs: usize) -> ArchivedChild<NStack<T, A>, A> {
+        match (ofs, self) {
+            (0, ArchivedNStack::Node([ArchivedOption::Some(a), _, _, _])) => {
+                ArchivedChild::Node(a)
             }
-            Some(GenericChild::Link(id, anno)) => {
-                let mut links = [
-                    Some(Link::new_persisted(*id, anno.cast()?)),
-                    None,
-                    None,
-                    None,
-                ];
-                for (i, child) in child_iter.enumerate() {
-                    if let GenericChild::Link(id, anno) = child {
-                        links[i + 1] =
-                            Some(Link::new_persisted(*id, anno.cast()?));
-                    } else {
-                        return Err(CanonError::InvalidEncoding);
-                    }
-                }
-                Ok(NStack::Node(links))
+            (1, ArchivedNStack::Node([_, ArchivedOption::Some(b), _, _])) => {
+                ArchivedChild::Node(b)
             }
+            (2, ArchivedNStack::Node([_, _, ArchivedOption::Some(c), _])) => {
+                ArchivedChild::Node(c)
+            }
+            (3, ArchivedNStack::Node([_, _, _, ArchivedOption::Some(d)])) => {
+                ArchivedChild::Node(d)
+            }
+            (0, ArchivedNStack::Leaf([ArchivedOption::Some(a), _, _, _])) => {
+                ArchivedChild::Leaf(a)
+            }
+            (1, ArchivedNStack::Leaf([_, ArchivedOption::Some(b), _, _])) => {
+                ArchivedChild::Leaf(b)
+            }
+            (2, ArchivedNStack::Leaf([_, _, ArchivedOption::Some(c), _])) => {
+                ArchivedChild::Leaf(c)
+            }
+            (3, ArchivedNStack::Leaf([_, _, _, ArchivedOption::Some(d)])) => {
+                ArchivedChild::Leaf(d)
+            }
+            _ => ArchivedChild::EndOfNode,
         }
     }
 }
 
-impl<T, A> MutableLeaves for NStack<T, A>
-where
-    A: Annotation<T> + Canon,
-    T: Canon,
-{
-}
+impl<T, A> MutableLeaves for NStack<T, A> where A: Annotation<T> {}
 
 impl<T, A> Default for NStack<T, A>
 where
-    A: Annotation<T> + Canon,
-    T: Canon,
+    A: Annotation<T>,
 {
     fn default() -> Self {
         NStack::Leaf([None, None, None, None])
@@ -140,9 +129,11 @@ enum Pop<T> {
 
 impl<T, A> NStack<T, A>
 where
-    Self: Compound<A>,
-    T: Canon,
-    A: Canon + Annotation<<Self as Compound<A>>::Leaf> + Annotation<T>,
+    Self: Archive,
+    <NStack<T, A> as Archive>::Archived:
+        ArchivedCompound<Self, A> + Deserialize<Self, Infallible>,
+    T: Archive + Clone,
+    A: Annotation<<Self as Compound<A>>::Leaf> + Annotation<T>,
 {
     /// Creates a new empty NStack
     pub fn new() -> Self {
@@ -150,9 +141,9 @@ where
     }
 
     /// Pushes a new element onto the stack
-    pub fn push(&mut self, t: T) -> Result<(), CanonError> {
-        match self._push(t)? {
-            Push::Ok => Ok(()),
+    pub fn push(&mut self, t: T) {
+        match self._push(t) {
+            Push::Ok => (),
             Push::NoRoom { t, .. } => {
                 let old_root = mem::take(self);
 
@@ -167,19 +158,19 @@ where
         }
     }
 
-    fn _push(&mut self, t: T) -> Result<Push<T>, CanonError> {
+    fn _push(&mut self, t: T) -> Push<T> {
         match self {
             NStack::Leaf(leaf) => {
                 for mut item in leaf.iter_mut() {
                     match item {
                         ref mut empty @ None => {
                             **empty = Some(t);
-                            return Ok(Push::Ok);
+                            return Push::Ok;
                         }
                         Some(_) => (),
                     }
                 }
-                Ok(Push::NoRoom { t, depth: 0 })
+                Push::NoRoom { t, depth: 0 }
             }
             NStack::Node(node) => {
                 let mut insert_node = None;
@@ -191,15 +182,15 @@ where
                     match &mut node[i] {
                         None => (),
                         Some(annotated) => {
-                            match annotated.inner_mut()?._push(t)? {
-                                Push::Ok => return Ok(Push::Ok),
+                            match annotated.inner_mut()._push(t) {
+                                Push::Ok => return Push::Ok,
                                 Push::NoRoom { t, depth } => {
                                     // Are we in the last node
                                     if i == N - 1 {
-                                        return Ok(Push::NoRoom {
+                                        return Push::NoRoom {
                                             t,
                                             depth: depth + 1,
-                                        });
+                                        };
                                     } else {
                                         // create a new node
                                         let mut new_node = NStack::Leaf([
@@ -239,7 +230,7 @@ where
                     unreachable!()
                 }
 
-                Ok(Push::Ok)
+                Push::Ok
             }
         }
     }
@@ -247,14 +238,14 @@ where
     /// Pop an element off the stack.
     ///
     /// Returns the popped element, if any.
-    pub fn pop(&mut self) -> Result<Option<T>, CanonError> {
-        match self._pop()? {
-            Pop::Ok(t) | Pop::Last(t) => Ok(Some(t)),
-            Pop::None => Ok(None),
+    pub fn pop(&mut self) -> Option<T> {
+        match self._pop() {
+            Pop::Ok(t) | Pop::Last(t) => Some(t),
+            Pop::None => None,
         }
     }
 
-    fn _pop(&mut self) -> Result<Pop<T>, CanonError> {
+    fn _pop(&mut self) -> Pop<T> {
         let mut clear_node = None;
 
         match self {
@@ -264,36 +255,36 @@ where
                     let i = N - i - 1;
                     if let Some(leaf) = leaf[i].take() {
                         if i > 0 {
-                            return Ok(Pop::Ok(leaf));
+                            return Pop::Ok(leaf);
                         } else {
-                            return Ok(Pop::Last(leaf));
+                            return Pop::Last(leaf);
                         }
                     }
                 }
-                Ok(Pop::None)
+                Pop::None
             }
             NStack::Node(node) => {
                 for i in 0..N {
                     // reverse
                     let i = N - i - 1;
                     if let Some(ref mut subtree) = node[i] {
-                        match subtree.inner_mut()?._pop()? {
-                            Pop::Ok(t) => return Ok(Pop::Ok(t)),
+                        match subtree.inner_mut()._pop() {
+                            Pop::Ok(t) => return Pop::Ok(t),
                             Pop::Last(t) => {
                                 if i == 0 {
-                                    return Ok(Pop::Last(t));
+                                    return Pop::Last(t);
                                 } else {
                                     clear_node = Some((t, i));
                                     break;
                                 }
                             }
-                            Pop::None => return Ok(Pop::None),
+                            Pop::None => return Pop::None,
                         }
                     }
                 }
                 if let Some((popped, clear_index)) = clear_node {
                     node[clear_index] = None;
-                    Ok(Pop::Ok(popped))
+                    Pop::Ok(popped)
                 } else {
                     unreachable!()
                 }
