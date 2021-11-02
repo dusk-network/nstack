@@ -6,14 +6,16 @@
 
 //! NStack
 //!
-//! A stack datastructure with indexed lookup.
+//! A stack data structure with indexed lookup.
 #![no_std]
 #![allow(clippy::large_enum_variant)]
+#![allow(clippy::type_complexity)]
+
 use core::mem;
 
 use microkelvin::{
     Annotation, ArchivedChild, ArchivedCompound, Child, ChildMut, Compound,
-    Link, MutableLeaves,
+    Link, MutableLeaves, Storage, StorageSerializer,
 };
 use rkyv::{
     option::ArchivedOption, Archive, Deserialize, Infallible, Serialize,
@@ -25,13 +27,21 @@ const N: usize = 4;
 // most common case is the larger enum, and node traversal should be fast, we trade memory for
 // speed here.
 #[derive(Clone, Debug, Archive, Serialize, Deserialize)]
-pub enum NStack<T, A>
-where
-    Self: Compound<A>,
-    A: Annotation<<Self as Compound<A>>::Leaf>,
-{
+#[archive(bound(serialize = "
+  T: Serialize<Storage>,
+  A: Annotation<T>,
+  __S: StorageSerializer,
+"))]
+#[archive(bound(deserialize = "
+  T: Archive,
+  A: Archive + Clone,
+  T::Archived: Deserialize<T, __D>,
+  A::Archived: Deserialize<A, __D>,
+  __D: Sized,
+"))]
+pub enum NStack<T, A> {
     Leaf([Option<T>; N]),
-    Node([Option<Link<NStack<T, A>, A>>; N]),
+    Node(#[omit_bounds] [Option<Link<NStack<T, A>, A>>; N]),
 }
 
 impl<T, A> Compound<A> for NStack<T, A>
@@ -254,11 +264,11 @@ where
                     // reverse
                     let i = N - i - 1;
                     if let Some(leaf) = leaf[i].take() {
-                        if i > 0 {
-                            return Pop::Ok(leaf);
+                        return if i > 0 {
+                            Pop::Ok(leaf)
                         } else {
-                            return Pop::Last(leaf);
-                        }
+                            Pop::Last(leaf)
+                        };
                     }
                 }
                 Pop::None

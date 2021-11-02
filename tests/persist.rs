@@ -4,48 +4,103 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-#[cfg(feature = "persistance")]
-mod persist {
+use nstack::NStack;
 
-    use microkelvin::{
-        BackendCtor, Compound, DiskBackend, PersistError, Persistance,
-    };
-    use nstack::NStack;
+use std::io;
 
-    #[test]
-    fn persist_across_threads() -> Result<(), PersistError> {
-        let n: u64 = 1024;
+use rend::LittleEndian;
 
-        let mut stack = NStack::<u64, ()>::new();
+use microkelvin::{ArchivedCompound, Cardinality, Nth, Portal};
 
-        for i in 0..n {
-            stack.push(i)?;
-        }
+fn persist() -> Result<(), io::Error> {
+    let n: u64 = 1024;
 
-        let backend = BackendCtor::new(|| DiskBackend::ephemeral());
-        let persisted = Persistance::persist(&backend, &stack)?;
-
-        // it should now be available from other threads
-
-        std::thread::spawn(move || {
-            let restored_generic = persisted.restore()?;
-
-            let mut restored: NStack<u64, ()> =
-                NStack::from_generic(&restored_generic)?;
-
-            for i in 0..n {
-                assert_eq!(restored.pop()?, Some(n - i - 1));
-            }
-            Ok(()) as Result<(), PersistError>
-        })
-        .join()
-        .expect("thread to join cleanly")?;
-
-        // then empty the original
-
-        for i in 0..n {
-            assert_eq!(stack.pop()?, Some(n - i - 1));
-        }
-        Ok(())
+    let mut stack = NStack::<_, Cardinality>::new();
+    for i in 0..n {
+        let i = LittleEndian::from(i);
+        stack.push(i);
     }
+
+    let stored = Portal::put(&stack);
+    let restored = Portal::get(stored);
+
+    // empty original
+    for i in 0..n {
+        assert_eq!(stack.pop().unwrap(), n - i - 1);
+    }
+
+    // empty restored copy
+    for i in 0..n {
+        assert_eq!(*restored.walk(Nth(i)).unwrap().leaf(), i);
+    }
+
+    Ok(())
+}
+
+#[test]
+fn persist_a() -> Result<(), io::Error> {
+    persist()
+}
+
+#[test]
+fn persist_b() -> Result<(), io::Error> {
+    persist()
+}
+
+#[test]
+fn persist_c() -> Result<(), io::Error> {
+    persist()
+}
+
+#[test]
+fn persist_d() -> Result<(), io::Error> {
+    persist()
+}
+
+fn persist_across_threads() -> Result<(), io::Error> {
+    let n: u64 = 1024;
+
+    let mut stack = NStack::<_, Cardinality>::new();
+    for i in 0..n {
+        let i = LittleEndian::from(i);
+        stack.push(i);
+    }
+
+    let stored = Portal::put(&stack);
+
+    std::thread::spawn(move || {
+        let restored = Portal::get(stored);
+        for i in 0..n {
+            assert_eq!(*restored.walk(Nth(i)).unwrap().leaf(), i);
+        }
+    })
+    .join()
+    .expect("thread to join cleanly");
+
+    // empty original
+    for i in 0..n {
+        assert_eq!(stack.pop().unwrap(), n - i - 1);
+    }
+
+    Ok(())
+}
+
+#[test]
+fn persist_across_threads_a() -> Result<(), io::Error> {
+    persist_across_threads()
+}
+
+#[test]
+fn persist_across_threads_b() -> Result<(), io::Error> {
+    persist_across_threads()
+}
+
+#[test]
+fn persist_across_threads_c() -> Result<(), io::Error> {
+    persist_across_threads()
+}
+
+#[test]
+fn persist_across_threads_d() -> Result<(), io::Error> {
+    persist_across_threads()
 }
