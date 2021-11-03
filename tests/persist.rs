@@ -8,7 +8,7 @@ use nstack::NStack;
 
 use std::io;
 
-use rend::LittleEndian;
+use rkyv::rend::LittleEndian;
 
 use microkelvin::{ArchivedCompound, Cardinality, Nth, Portal};
 

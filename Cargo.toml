@@ -11,6 +11,3 @@ keywords = ["merkle", "datastructure", "stack"]
 [dependencies]
 microkelvin = { path = "../microkelvin" }
 rkyv = "0.7.20"
-
-[dev-dependencies]
-rend = "0.3.2"
