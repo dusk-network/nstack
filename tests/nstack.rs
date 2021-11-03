@@ -4,11 +4,8 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use core::borrow::Borrow;
-
 use microkelvin::*;
 use nstack::NStack;
-use rkyv::{rend::LittleEndian, Archive};
 
 #[test]
 fn trivial() {
@@ -56,12 +53,11 @@ fn nth() {
     let mut nstack = NStack::<_, Cardinality>::new();
 
     for i in 0..n {
-        let le: LittleEndian<u64> = i.into();
-        nstack.push(le);
+        nstack.push(i);
     }
 
     for i in 0..n {
-        assert_eq!(*nstack.walk(Nth(i)).expect("Some(_)").leaf(), i);
+        assert_eq!(nstack.walk(Nth(i)).expect("Some(_)").leaf(), i);
     }
 
     assert!(nstack.walk(Nth(n)).is_none());
@@ -74,8 +70,7 @@ fn nth_mut() {
     let mut nstack = NStack::<_, Cardinality>::new();
 
     for i in 0..n {
-        let le: LittleEndian<u64> = i.into();
-        nstack.push(le);
+        nstack.push(i);
     }
 
     for i in 0..n {
@@ -83,7 +78,7 @@ fn nth_mut() {
     }
 
     for i in 0..n {
-        assert_eq!(*nstack.walk(Nth(i)).expect("Some(_)").leaf(), i + 1);
+        assert_eq!(nstack.walk(Nth(i)).expect("Some(_)").leaf(), i + 1);
     }
 }
 
@@ -95,8 +90,7 @@ fn branch_lengths() {
     let mut nt = NStack::<_, Cardinality>::new();
 
     for i in 0..n {
-        let le: LittleEndian<u64> = i.into();
-        nt.push(le);
+        nt.push(i);
     }
 
     let length_reference = nt.walk(First).expect("Some(_)").depth();
@@ -106,66 +100,25 @@ fn branch_lengths() {
     }
 }
 
-#[derive(Clone, Debug, Archive)]
-#[archive(as = "Self")]
-#[archive(bound(archive = "
-  K: Primitive,
-  MaxKey<K>: Primitive,
-"))]
-struct MaxAndCardinality<K> {
-    cardinality: Cardinality,
-    max: MaxKey<K>,
-}
+#[test]
+fn persist() {
+    let n: u64 = 1024;
 
-impl<K> Default for MaxAndCardinality<K> {
-    fn default() -> Self {
-        Self {
-            max: Default::default(),
-            cardinality: Default::default(),
-        }
+    let mut stack = NStack::<_, Cardinality>::new();
+    for i in 0..n {
+        stack.push(i);
     }
-}
 
-impl<K> Borrow<Cardinality> for MaxAndCardinality<K> {
-    fn borrow(&self) -> &Cardinality {
-        &self.cardinality
+    let stored = Portal::put(&stack);
+    let restored = Portal::get(stored);
+
+    // empty original
+    for i in 0..n {
+        assert_eq!(stack.pop().unwrap(), n - i - 1);
     }
-}
 
-impl<K> Borrow<MaxKey<K>> for MaxAndCardinality<K> {
-    fn borrow(&self) -> &MaxKey<K> {
-        &self.max
-    }
-}
-
-impl<K, L> Annotation<L> for MaxAndCardinality<K>
-where
-    L: Keyed<K>,
-    K: Primitive + Clone + Ord,
-{
-    fn from_leaf(leaf: &L) -> Self {
-        Self {
-            cardinality: Cardinality::from_leaf(leaf),
-            max: MaxKey::from_leaf(leaf),
-        }
-    }
-}
-
-impl<A, K> Combine<A> for MaxAndCardinality<K>
-where
-    A: Borrow<Cardinality> + Borrow<MaxKey<K>>,
-    K: Clone + Ord,
-{
-    fn combine<C>(anno: AnnoIter<C, A>) -> Self
-    where
-        C: Compound<A> + Archive,
-        C::Archived: ArchivedCompound<C, A>,
-        C::Leaf: Archive,
-        A: Annotation<C::Leaf>,
-    {
-        Self {
-            cardinality: Cardinality::combine(anno.clone()),
-            max: MaxKey::combine(anno),
-        }
+    // empty restored copy
+    for i in 0..n {
+        assert_eq!(restored.walk(Nth(i)).unwrap().leaf(), i);
     }
 }
