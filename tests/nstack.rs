@@ -117,7 +117,7 @@ fn persist() {
         assert_eq!(stack.pop().unwrap(), n - i - 1);
     }
 
-    // empty restored copy
+    // check restored copy
     for i in 0..n {
         assert_eq!(restored.walk(Nth(i)).unwrap().leaf(), i);
     }
