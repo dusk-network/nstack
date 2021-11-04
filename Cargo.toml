@@ -9,5 +9,5 @@ repository = "https://github.com/dusk-network/nstack"
 keywords = ["merkle", "datastructure", "stack"]
 
 [dependencies]
-microkelvin = { path = "../microkelvin" }
+microkelvin = "0.11.0-rc.0"
 rkyv = "0.7.20"
