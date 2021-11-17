@@ -1,3 +1,6 @@
+![Dusk CI](https://github.com/dusk-network/nstack/actions/workflows/dusk_ci.yml/badge.svg)
+[![codecov](https://codecov.io/gh/dusk-network/nstack/branch/master/graph/badge.svg?token=GQUFNVJXT1)](https://codecov.io/gh/dusk-network/nstack)
+
 # nstack
 
 nstack is a stack-like merkle datastructure for storing and accessing indexed values.
