@@ -6,7 +6,7 @@
 
 use microkelvin::*;
 use nstack::NStack;
-use rkyv::{Archive, Archived, Deserialize};
+use rkyv::{Archive, Deserialize};
 
 #[test]
 fn trivial() {
@@ -114,7 +114,8 @@ fn persist() {
     let store = StoreRef::new(HostStore::new());
     let stored = store.store(&stack);
 
-    let restored: &<NStack<u64, Cardinality, OffsetLen> as Archive>::Archived = store.get::<NStack<_, Cardinality, OffsetLen>>(stored.ident());
+    let restored: &<NStack<u64, Cardinality, OffsetLen> as Archive>::Archived =
+        store.get::<NStack<_, Cardinality, OffsetLen>>(stored.ident());
     let restored: NStack<u64, Cardinality, OffsetLen> =
         restored.deserialize(&mut store.clone()).unwrap();
 

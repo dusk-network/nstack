@@ -37,7 +37,6 @@ const N: usize = 4;
 "))]
 #[archive(bound(deserialize = "
   NStack<T, A, I>: Clone,
-//  <T as Archive>::Archived: Deserialize<T, StoreRef<I>>,
   A: Clone, // + Annotation<NStack<T, A, I>>,
   I: Clone,
   __D: StoreProvider<I>,
@@ -149,7 +148,6 @@ where
         + Deserialize<Self, StoreRef<I>>
         + for<'a> CheckBytes<DefaultValidator<'a>>,
     T: Archive + Clone + for<'a> CheckBytes<DefaultValidator<'a>>,
-    //<T as Archive>::Archived: Deserialize<T, StoreRef<I>>,
     A: Annotation<<Self as Compound<A, I>>::Leaf>
         + Annotation<T>
         + Annotation<NStack<T, A, I>>,
@@ -202,8 +200,7 @@ where
                     match &mut node[i] {
                         None => (),
                         Some(annotated) => {
-                            let inner_mut = annotated.inner_mut();
-                            match inner_mut._push(t) {
+                            match annotated.inner_mut()._push(t) {
                                 Push::Ok => return Push::Ok,
                                 Push::NoRoom { t, depth } => {
                                     // Are we in the last node
