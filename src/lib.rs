@@ -11,8 +11,8 @@
 #![allow(clippy::large_enum_variant)]
 #![allow(clippy::type_complexity)]
 
-use core::mem;
 use core::borrow::BorrowMut;
+use core::mem;
 
 use bytecheck::CheckBytes;
 use microkelvin::{
@@ -20,9 +20,7 @@ use microkelvin::{
     Link, MutableLeaves, StoreProvider, StoreRef, StoreSerializer,
 };
 use rkyv::validation::validators::DefaultValidator;
-use rkyv::{
-    option::ArchivedOption, Archive, Deserialize, Serialize,
-};
+use rkyv::{option::ArchivedOption, Archive, Deserialize, Serialize};
 
 const N: usize = 4;
 
@@ -85,7 +83,8 @@ where
     }
 }
 
-impl<T, A, I> ArchivedCompound<NStack<T, A, I>, A, I> for ArchivedNStack<T, A, I>
+impl<T, A, I> ArchivedCompound<NStack<T, A, I>, A, I>
+    for ArchivedNStack<T, A, I>
 where
     T: Archive,
     A: Annotation<T>,
@@ -146,14 +145,14 @@ enum Pop<T> {
 impl<T, A, I> NStack<T, A, I>
 where
     Self: Archive,
-    <NStack<T, A, I> as Archive>::Archived:
-        ArchivedCompound<Self, A, I> + Deserialize<Self, StoreRef<I>>
+    <NStack<T, A, I> as Archive>::Archived: ArchivedCompound<Self, A, I>
+        + Deserialize<Self, StoreRef<I>>
         + for<'a> CheckBytes<DefaultValidator<'a>>,
-    T: Archive
-    + Clone
-    + for<'a> CheckBytes<DefaultValidator<'a>>,
+    T: Archive + Clone + for<'a> CheckBytes<DefaultValidator<'a>>,
     //<T as Archive>::Archived: Deserialize<T, StoreRef<I>>,
-    A: Annotation<<Self as Compound<A, I>>::Leaf> + Annotation<T> + Annotation<NStack<T, A, I>>,
+    A: Annotation<<Self as Compound<A, I>>::Leaf>
+        + Annotation<T>
+        + Annotation<NStack<T, A, I>>,
     I: Clone + for<'any> CheckBytes<DefaultValidator<'any>>,
 {
     /// Creates a new empty NStack

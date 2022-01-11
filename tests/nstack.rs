@@ -114,9 +114,9 @@ fn persist() {
     let store = StoreRef::new(HostStore::new());
     let stored = store.store(&stack);
 
-    let restored_archive: &<NStack<u64, Cardinality, OffsetLen> as Archive>::Archived = store.get::<NStack<_, Cardinality, OffsetLen>>(stored.ident());
-    let mut store = store.clone();
-    let restored: NStack<u64, Cardinality, OffsetLen> = restored_archive.deserialize(&mut store).unwrap();
+    let restored: &<NStack<u64, Cardinality, OffsetLen> as Archive>::Archived = store.get::<NStack<_, Cardinality, OffsetLen>>(stored.ident());
+    let restored: NStack<u64, Cardinality, OffsetLen> =
+        restored.deserialize(&mut store.clone()).unwrap();
 
     // empty original
     for i in 0..n {

@@ -1,7 +1,10 @@
 [package]
 name = "nstack"
 version = "0.11.0-rc.0"
-authors = ["Kristoffer Ström <kristoffer@dusk.network>"]
+authors = [
+    "Kristoffer Ström <kristoffer@dusk.network>",
+    "Miłosz Muszyński <milosz@dusk.network>"
+]
 edition = "2018"
 description = "Arity 4 stack for the kelvin merkle toolkit"
 license = "MPL-2.0"
