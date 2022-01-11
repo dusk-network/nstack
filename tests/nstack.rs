@@ -6,23 +6,24 @@
 
 use microkelvin::*;
 use nstack::NStack;
+use rkyv::{Archive, Archived, Deserialize};
 
 #[test]
 fn trivial() {
-    let mut nt = NStack::<u32, Cardinality>::new();
+    let mut nt = NStack::<u32, Cardinality, OffsetLen>::new();
     assert_eq!(nt.pop(), None);
 }
 
 #[test]
 fn push_pop() {
-    let mut nt = NStack::<_, Cardinality>::new();
+    let mut nt = NStack::<_, Cardinality, OffsetLen>::new();
     nt.push(8);
     assert_eq!(nt.pop(), Some(8));
 }
 
 #[test]
 fn double() {
-    let mut nt = NStack::<_, Cardinality>::new();
+    let mut nt = NStack::<_, Cardinality, OffsetLen>::new();
     nt.push(0);
     nt.push(1);
     assert_eq!(nt.pop(), Some(1));
@@ -33,7 +34,7 @@ fn double() {
 fn multiple() {
     let n = 1024;
 
-    let mut nt = NStack::<_, Cardinality>::new();
+    let mut nt = NStack::<_, Cardinality, OffsetLen>::new();
 
     for i in 0..n {
         nt.push(i);
@@ -50,7 +51,7 @@ fn multiple() {
 fn nth() {
     let n: u64 = 1024;
 
-    let mut nstack = NStack::<_, Cardinality>::new();
+    let mut nstack = NStack::<_, Cardinality, OffsetLen>::new();
 
     for i in 0..n {
         nstack.push(i);
@@ -67,14 +68,15 @@ fn nth() {
 fn nth_mut() {
     let n: u64 = 1024;
 
-    let mut nstack = NStack::<_, Cardinality>::new();
+    let mut nstack = NStack::<_, Cardinality, OffsetLen>::new();
 
     for i in 0..n {
         nstack.push(i);
     }
 
     for i in 0..n {
-        *nstack.walk_mut(Nth(i)).expect("Some(_)") += 1;
+        let mut branch_mut = nstack.walk_mut(Nth(i)).expect("Some(_)");
+        *branch_mut.leaf_mut() += 1;
     }
 
     for i in 0..n {
@@ -87,13 +89,13 @@ fn nth_mut() {
 fn branch_lengths() {
     let n = 256;
 
-    let mut nt = NStack::<_, Cardinality>::new();
+    let mut nt = NStack::<_, Cardinality, OffsetLen>::new();
 
     for i in 0..n {
         nt.push(i);
     }
 
-    let length_reference = nt.walk(First).expect("Some(_)").depth();
+    let length_reference = nt.walk(All).expect("Some(_)").depth();
 
     for i in 0..n {
         assert_eq!(length_reference, nt.walk(Nth(i)).expect("Some(_)").depth())
@@ -104,13 +106,17 @@ fn branch_lengths() {
 fn persist() {
     let n: u64 = 1024;
 
-    let mut stack = NStack::<_, Cardinality>::new();
+    let mut stack = NStack::<_, Cardinality, OffsetLen>::new();
     for i in 0..n {
         stack.push(i);
     }
 
-    let stored = Portal::put(&stack);
-    let restored = Portal::get(stored);
+    let store = StoreRef::new(HostStore::new());
+    let stored = store.store(&stack);
+
+    let restored_archive: &<NStack<u64, Cardinality, OffsetLen> as Archive>::Archived = store.get::<NStack<_, Cardinality, OffsetLen>>(stored.ident());
+    let mut store = store.clone();
+    let restored: NStack<u64, Cardinality, OffsetLen> = restored_archive.deserialize(&mut store).unwrap();
 
     // empty original
     for i in 0..n {
