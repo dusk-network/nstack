@@ -21,7 +21,7 @@ use microkelvin::{
 };
 use rkyv::validation::validators::DefaultValidator;
 use rkyv::{
-    option::ArchivedOption, Archive, Deserialize, Infallible, Serialize,
+    option::ArchivedOption, Archive, Deserialize, Serialize,
 };
 
 const N: usize = 4;
@@ -29,18 +29,18 @@ const N: usize = 4;
 // Clippy complains about the difference in size between the enum variants, however since the
 // most common case is the larger enum, and node traversal should be fast, we trade memory for
 // speed here.
-#[derive(Clone, Debug, Archive, Serialize, Deserialize)]
+#[derive(Clone, Archive, Serialize, Deserialize)]
 #[archive_attr(derive(CheckBytes))]
 #[archive(bound(serialize = "
   T: Archive + Serialize<StoreSerializer<I>>,
-  A: Clone + Annotation<NStack<T, A, I>>,
+  A: Clone + Annotation<T>,
   I: Clone,
   __S: Sized + BorrowMut<StoreSerializer<I>>,
 "))]
 #[archive(bound(deserialize = "
-  NStack<T, A, I>: Archive + Clone,
-  <NStack<T, A, I> as Archive>::Archived: Deserialize<NStack<T, A, I>, StoreRef<I>>,
-  A: Clone + Annotation<NStack<T, A, I>>,
+  NStack<T, A, I>: Clone,
+//  <T as Archive>::Archived: Deserialize<T, StoreRef<I>>,
+  A: Clone, // + Annotation<NStack<T, A, I>>,
   I: Clone,
   __D: StoreProvider<I>,
 "))]
@@ -147,10 +147,12 @@ impl<T, A, I> NStack<T, A, I>
 where
     Self: Archive,
     <NStack<T, A, I> as Archive>::Archived:
-        ArchivedCompound<Self, A, I> + Deserialize<Self, Infallible>
+        ArchivedCompound<Self, A, I> + Deserialize<Self, StoreRef<I>>
         + for<'a> CheckBytes<DefaultValidator<'a>>,
-    T: Archive + Clone,
-    T::Archived: for<'a> CheckBytes<DefaultValidator<'a>>,
+    T: Archive
+    + Clone
+    + for<'a> CheckBytes<DefaultValidator<'a>>,
+    //<T as Archive>::Archived: Deserialize<T, StoreRef<I>>,
     A: Annotation<<Self as Compound<A, I>>::Leaf> + Annotation<T> + Annotation<NStack<T, A, I>>,
     I: Clone + for<'any> CheckBytes<DefaultValidator<'any>>,
 {
@@ -201,7 +203,8 @@ where
                     match &mut node[i] {
                         None => (),
                         Some(annotated) => {
-                            match annotated.inner_mut()._push(t) {
+                            let inner_mut = annotated.inner_mut();
+                            match inner_mut._push(t) {
                                 Push::Ok => return Push::Ok,
                                 Push::NoRoom { t, depth } => {
                                     // Are we in the last node
