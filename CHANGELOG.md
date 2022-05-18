@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2022-05-18
+
+### Changed
+
+- Change `microlelvin` dependency version to `0.16.0-rkyv`
+
 ## [0.10.0] - 2021-07-27
 
 ### Changed

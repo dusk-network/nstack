@@ -1,6 +1,6 @@
 [package]
 name = "nstack"
-version = "0.12.0-rc.0"
+version = "0.15.0-rkyv.0"
 authors = [
     "Kristoffer Ström <kristoffer@dusk.network>",
     "Miłosz Muszyński <milosz@dusk.network>"
@@ -13,8 +13,8 @@ keywords = ["merkle", "datastructure", "stack"]
 
 [dependencies]
 bytecheck = { version = "0.6.7", default-features = false }
-microkelvin = { version = "0.13.0-rc.0", default-features = false }
+microkelvin = { version = "0.16.0-rkyv", default-features = false }
 rkyv = { version = "0.7.29", default-features = false, features = ["validation"] }
 
 [dev-dependencies]
-microkelvin = { version = "0.13.0-rc.0" }
+microkelvin = { version = "0.16.0-rkyv" }
