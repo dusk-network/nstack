@@ -12,9 +12,3 @@ repository = "https://github.com/dusk-network/nstack"
 keywords = ["merkle", "datastructure", "stack"]
 
 [dependencies]
-bytecheck = { version = "0.6.7", default-features = false }
-microkelvin = { version = "0.16.0-rkyv", default-features = false }
-rkyv = { version = "0.7.29", default-features = false, features = ["validation"] }
-
-[dev-dependencies]
-microkelvin = { version = "0.16.0-rkyv" }
