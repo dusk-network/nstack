@@ -4,7 +4,7 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use nstack::{Annotation, NStack};
+use nstack::{Annotation, Combine, NStack};
 
 #[derive(Debug, Default, Clone)]
 struct Cardinality(usize);
@@ -13,7 +13,9 @@ impl Annotation<u32> for Cardinality {
     fn from_subtree(_: &u32) -> Self {
         Cardinality(1)
     }
+}
 
+impl Combine for Cardinality {
     fn combine(&self, other: &Self) -> Self {
         Self(self.0 + other.0)
     }

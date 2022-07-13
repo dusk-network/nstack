@@ -9,15 +9,13 @@
 //! A stack data structure with indexed lookup.
 #![no_std]
 
-pub mod annotation;
+mod annotation;
+pub use annotation::*;
 
 extern crate alloc;
 use alloc::rc::Rc;
 
 use core::mem;
-
-use annotation::Annotated;
-pub use annotation::Annotation;
 
 const N: usize = 4;
 
@@ -251,22 +249,5 @@ where
                 anno
             }
         }
-    }
-
-    fn combine(&self, other: &Self) -> Self {
-        <A as Annotation<T>>::combine(self, other)
-    }
-}
-
-impl<T, A> Annotation<Rc<NStack<T, A>>> for A
-where
-    A: Default + Annotation<T>,
-{
-    fn from_subtree(t: &Rc<NStack<T, A>>) -> Self {
-        <A as Annotation<NStack<T, A>>>::from_subtree(t.as_ref())
-    }
-
-    fn combine(&self, other: &Self) -> Self {
-        <A as Annotation<NStack<T, A>>>::combine(self, other)
     }
 }

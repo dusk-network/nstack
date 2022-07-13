@@ -5,6 +5,7 @@
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
 extern crate alloc;
+use alloc::rc::Rc;
 
 use core::ops::{Deref, DerefMut};
 
@@ -123,26 +124,19 @@ where
     }
 }
 
-pub trait Annotation<T> {
+pub trait Annotation<T>: Combine {
     fn from_subtree(t: &T) -> Self;
+}
+
+pub trait Combine {
     fn combine(&self, other: &Self) -> Self;
 }
 
-// impl<T> Annotation<T> for () {
-//     fn from_subtree(_: &T) -> Self {}
-//
-//     fn combine(&self, _: &Self) -> Self {}
-// }
-//
-// impl<T, A> Annotation<Rc<T>> for A
-// where
-//     A: Annotation<T>,
-// {
-//     fn from_subtree(t: &Rc<T>) -> Self {
-//         A::from_subtree(t.as_ref())
-//     }
-//
-//     fn combine(&mut self, other: &Self) {
-//         <A as Annotation<T>>::combine(self, other);
-//     }
-// }
+impl<T, A> Annotation<Rc<T>> for A
+where
+    A: Annotation<T>,
+{
+    fn from_subtree(t: &Rc<T>) -> Self {
+        A::from_subtree(t.as_ref())
+    }
+}
