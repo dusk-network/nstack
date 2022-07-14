@@ -29,7 +29,7 @@ pub enum NStack<T, A> {
 
 impl<T, A> NStack<T, A> {
     /// Creates a new empty NStack
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         NStack::Leaf([None, None, None, None])
     }
 }
