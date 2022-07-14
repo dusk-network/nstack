@@ -9,13 +9,14 @@
 //! A stack data structure with indexed lookup.
 #![no_std]
 
-mod annotation;
-pub use annotation::*;
+pub mod annotation;
 
 extern crate alloc;
 use alloc::rc::Rc;
 
 use core::mem;
+
+use ranno::{Annotated, Annotation};
 
 const N: usize = 4;
 
@@ -47,7 +48,7 @@ enum Pop<T> {
 impl<T, A> NStack<T, A>
 where
     T: Clone,
-    A: Default + Clone + Annotation<T>,
+    A: Annotation<Self>,
 {
     /// Pushes a new element onto the stack
     pub fn push(&mut self, t: T) {
@@ -91,8 +92,7 @@ where
                     match &mut node[i] {
                         None => (),
                         Some(anno) => {
-                            match Rc::make_mut(&mut *anno.subtree_mut())
-                                ._push(t)
+                            match Rc::make_mut(&mut *anno.child_mut())._push(t)
                             {
                                 Push::Ok => return Push::Ok,
                                 Push::NoRoom { t, depth } => {
@@ -181,7 +181,7 @@ where
                     // reverse
                     let i = N - i - 1;
                     if let Some(ref mut anno) = node[i] {
-                        match Rc::make_mut(&mut *anno.subtree_mut())._pop() {
+                        match Rc::make_mut(&mut *anno.child_mut())._pop() {
                             Pop::Ok(t) => return Pop::Ok(t),
                             Pop::Last(t) => {
                                 if i == 0 {
@@ -206,10 +206,7 @@ where
     }
 }
 
-impl<T, A> Default for NStack<T, A>
-where
-    A: Annotation<NStack<T, A>>,
-{
+impl<T, A> Default for NStack<T, A> {
     fn default() -> Self {
         Self::new()
     }
@@ -218,36 +215,12 @@ where
 impl<T, A> Clone for NStack<T, A>
 where
     T: Clone,
-    A: Clone,
+    A: Annotation<Self>,
 {
     fn clone(&self) -> Self {
         match self {
             NStack::Leaf(anno) => NStack::Leaf(anno.clone()),
             NStack::Node(node) => NStack::Node(node.clone()),
-        }
-    }
-}
-
-impl<T, A> Annotation<NStack<T, A>> for A
-where
-    A: Default + Annotation<T>,
-{
-    fn from_subtree(stack: &NStack<T, A>) -> Self {
-        match stack {
-            NStack::Leaf(leaf) => {
-                let mut anno = A::default();
-                for t in leaf.iter().flatten() {
-                    anno = anno.combine(&A::from_subtree(t));
-                }
-                anno
-            }
-            NStack::Node(node) => {
-                let mut anno = A::default();
-                for a in node.iter().flatten() {
-                    anno = anno.combine(a.anno());
-                }
-                anno
-            }
         }
     }
 }

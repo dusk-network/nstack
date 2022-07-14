@@ -4,22 +4,9 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use nstack::{Annotation, Combine, NStack};
-
-#[derive(Debug, Default, Clone)]
-struct Cardinality(usize);
-
-impl Annotation<u32> for Cardinality {
-    fn from_subtree(_: &u32) -> Self {
-        Cardinality(1)
-    }
-}
-
-impl Combine for Cardinality {
-    fn combine(&self, other: &Self) -> Self {
-        Self(self.0 + other.0)
-    }
-}
+use nstack::annotation::Cardinality;
+use nstack::NStack;
+use ranno::Annotation;
 
 #[test]
 fn trivial() {
@@ -51,7 +38,7 @@ fn multiple() {
 
     for i in 0..n {
         nt.push(i);
-        assert_eq!(Cardinality::from_subtree(&nt).0, (i + 1) as usize);
+        assert_eq!(Cardinality::from_child(&nt), (i + 1) as usize);
     }
 
     for i in 0..n {
