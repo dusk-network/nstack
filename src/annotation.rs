@@ -6,13 +6,21 @@
 
 use crate::NStack;
 
-use core::ops::AddAssign;
+use core::ops::{AddAssign, Deref};
 
 use ranno::Annotation;
 
 /// The cardinality of the NStack.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct Cardinality(usize);
+
+impl Deref for Cardinality {
+    type Target = usize;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 impl AddAssign<usize> for Cardinality {
     fn add_assign(&mut self, rhs: usize) {
