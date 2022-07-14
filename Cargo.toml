@@ -12,8 +12,4 @@ repository = "https://github.com/dusk-network/nstack"
 keywords = ["merkle", "datastructure", "stack"]
 
 [dependencies]
-<<<<<<< Updated upstream
-ranno = { path = "../ranno" }
-=======
 ranno = { git = "ssh://git@github.com/dusk-network/ranno", branch = "main", default-features = false, features = ["alloc"] }
->>>>>>> Stashed changes
