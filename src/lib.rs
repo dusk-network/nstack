@@ -21,11 +21,12 @@ use ranno::{Annotated, Annotation};
 
 const N: usize = 4;
 
-#[allow(clippy::type_complexity)]
+type NStackRef<T, A> = Box<NStack<T, A>>;
+
 #[derive(Debug)]
 pub enum NStack<T, A> {
     Leaf([Option<T>; N]),
-    Node([Option<Annotated<Box<NStack<T, A>>, A>>; N]),
+    Node([Option<Annotated<NStackRef<T, A>, A>>; N]),
 }
 
 impl<T, A> NStack<T, A> {
