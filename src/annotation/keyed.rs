@@ -24,7 +24,6 @@ where
         A: Borrow<MaxKey<K>>,
         K: Clone + PartialOrd,
     {
-        // Return the first that satisfies the walk
         Branch::walk(self, FindMaxKey::<K>::default())
     }
 
@@ -35,7 +34,6 @@ where
         A: Borrow<MaxKey<K>>,
         K: Clone + PartialOrd,
     {
-        // Return the first mutable branch that satisfies the walk
         BranchMut::walk(self, FindMaxKey::<K>::default())
     }
 }
