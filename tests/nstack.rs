@@ -10,20 +10,20 @@ use ranno::Annotation;
 
 #[test]
 fn trivial() {
-    let mut nt = NStack::<u32, Cardinality>::new();
+    let mut nt = NStack::<u32, ()>::new();
     assert_eq!(nt.pop(), None);
 }
 
 #[test]
 fn push_pop() {
-    let mut nt = NStack::<u32, Cardinality>::new();
+    let mut nt = NStack::<u32, ()>::new();
     nt.push(8);
     assert_eq!(nt.pop(), Some(8));
 }
 
 #[test]
 fn double() {
-    let mut nt = NStack::<u32, Cardinality>::new();
+    let mut nt = NStack::<u32, ()>::new();
     nt.push(0);
     nt.push(1);
     assert_eq!(nt.pop(), Some(1));

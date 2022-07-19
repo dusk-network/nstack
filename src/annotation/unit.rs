@@ -4,8 +4,10 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-mod cardinality;
-mod index;
-mod unit;
+use crate::NStack;
 
-pub use cardinality::Cardinality;
+use ranno::Annotation;
+
+impl<T, A> Annotation<NStack<T, A>> for () {
+    fn from_child(_: &NStack<T, A>) -> Self {}
+}
