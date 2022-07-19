@@ -16,7 +16,7 @@ use alloc::boxed::Box;
 
 use core::mem;
 
-use microkelvin::{Child, ChildMut, Compound};
+use microkelvin::{Child, ChildMut, Compound, MutableLeaves};
 use ranno::{Annotated, Annotation};
 
 const N: usize = 4;
@@ -236,6 +236,8 @@ where
         }
     }
 }
+
+impl<T, A> MutableLeaves for NStack<T, A> {}
 
 impl<T, A> Default for NStack<T, A> {
     fn default() -> Self {

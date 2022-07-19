@@ -47,3 +47,56 @@ fn multiple() {
 
     assert_eq!(nt.pop(), None);
 }
+
+#[test]
+fn nth() {
+    let n = 1024;
+
+    let mut nstack = NStack::<_, Cardinality>::new();
+
+    for i in 0..n {
+        nstack.push(i);
+    }
+
+    for i in 0..n {
+        assert_eq!(*nstack.nth(i).expect("Some(_)"), i);
+    }
+
+    assert!(nstack.nth(n).is_none());
+}
+
+#[test]
+fn nth_mut() {
+    let n = 1024;
+
+    let mut nstack = NStack::<_, Cardinality>::new();
+
+    for i in 0..n {
+        nstack.push(i);
+    }
+
+    for i in 0..n {
+        *nstack.nth_mut(i).expect("Some(_)") += 1;
+    }
+
+    for i in 0..n {
+        assert_eq!(*nstack.nth(i).expect("Some(_)"), i + 1);
+    }
+}
+
+#[test]
+fn branch_lengths() {
+    let n = 256;
+
+    let mut nt = NStack::<_, Cardinality>::new();
+
+    for i in 0..n {
+        nt.push(i);
+    }
+
+    let length_zero = nt.nth(0).expect("Some(_)").depth();
+
+    for i in 1..n {
+        assert_eq!(length_zero, nt.nth(i).expect("Some(_)").depth())
+    }
+}
