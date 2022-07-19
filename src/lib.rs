@@ -12,10 +12,11 @@
 pub mod annotation;
 
 extern crate alloc;
-use alloc::rc::Rc;
+use alloc::boxed::Box;
 
 use core::mem;
 
+use microkelvin::{Child, ChildMut, Compound};
 use ranno::{Annotated, Annotation};
 
 const N: usize = 4;
@@ -24,7 +25,7 @@ const N: usize = 4;
 #[derive(Debug)]
 pub enum NStack<T, A> {
     Leaf([Option<T>; N]),
-    Node([Option<Annotated<Rc<NStack<T, A>>, A>>; N]),
+    Node([Option<Annotated<Box<NStack<T, A>>, A>>; N]),
 }
 
 impl<T, A> NStack<T, A> {
@@ -45,9 +46,40 @@ enum Pop<T> {
     None,
 }
 
+impl<T, A> Compound<A> for NStack<T, A> {
+    type Leaf = T;
+
+    fn child(&self, index: usize) -> Child<Self, A> {
+        match (index, self) {
+            (0, NStack::Node([Some(a), _, _, _])) => Child::Node(a),
+            (1, NStack::Node([_, Some(b), _, _])) => Child::Node(b),
+            (2, NStack::Node([_, _, Some(c), _])) => Child::Node(c),
+            (3, NStack::Node([_, _, _, Some(d)])) => Child::Node(d),
+            (0, NStack::Leaf([Some(a), _, _, _])) => Child::Leaf(a),
+            (1, NStack::Leaf([_, Some(b), _, _])) => Child::Leaf(b),
+            (2, NStack::Leaf([_, _, Some(c), _])) => Child::Leaf(c),
+            (3, NStack::Leaf([_, _, _, Some(d)])) => Child::Leaf(d),
+            _ => Child::EndOfNode,
+        }
+    }
+
+    fn child_mut(&mut self, index: usize) -> ChildMut<Self, A> {
+        match (index, self) {
+            (0, NStack::Node([Some(a), _, _, _])) => ChildMut::Node(a),
+            (1, NStack::Node([_, Some(b), _, _])) => ChildMut::Node(b),
+            (2, NStack::Node([_, _, Some(c), _])) => ChildMut::Node(c),
+            (3, NStack::Node([_, _, _, Some(d)])) => ChildMut::Node(d),
+            (0, NStack::Leaf([Some(a), _, _, _])) => ChildMut::Leaf(a),
+            (1, NStack::Leaf([_, Some(b), _, _])) => ChildMut::Leaf(b),
+            (2, NStack::Leaf([_, _, Some(c), _])) => ChildMut::Leaf(c),
+            (3, NStack::Leaf([_, _, _, Some(d)])) => ChildMut::Leaf(d),
+            _ => ChildMut::EndOfNode,
+        }
+    }
+}
+
 impl<T, A> NStack<T, A>
 where
-    T: Clone,
     A: Annotation<Self>,
 {
     /// Pushes a new element onto the stack
@@ -58,7 +90,7 @@ where
                 let old_root = mem::take(self);
 
                 let mut new_node = [None, None, None, None];
-                new_node[0] = Some(Annotated::new(Rc::new(old_root)));
+                new_node[0] = Some(Annotated::new(Box::new(old_root)));
 
                 *self = NStack::Node(new_node);
 
@@ -92,8 +124,7 @@ where
                     match &mut node[i] {
                         None => (),
                         Some(anno) => {
-                            match Rc::make_mut(&mut *anno.child_mut())._push(t)
-                            {
+                            match anno.child_mut()._push(t) {
                                 Push::Ok => return Push::Ok,
                                 Push::NoRoom { t, depth } => {
                                     // Are we in the last node
@@ -118,7 +149,7 @@ where
                                                 NStack::new(),
                                             );
                                             new_node = NStack::Node([
-                                                Some(Annotated::new(Rc::new(
+                                                Some(Annotated::new(Box::new(
                                                     old_root,
                                                 ))),
                                                 None,
@@ -138,7 +169,7 @@ where
                 }
                 // break out and insert
                 if let Some((new_node, index)) = insert_node {
-                    node[index] = Some(Annotated::new(Rc::new(new_node)));
+                    node[index] = Some(Annotated::new(Box::new(new_node)));
                 } else {
                     unreachable!()
                 }
@@ -181,7 +212,7 @@ where
                     // reverse
                     let i = N - i - 1;
                     if let Some(ref mut anno) = node[i] {
-                        match Rc::make_mut(&mut *anno.child_mut())._pop() {
+                        match anno.child_mut()._pop() {
                             Pop::Ok(t) => return Pop::Ok(t),
                             Pop::Last(t) => {
                                 if i == 0 {
