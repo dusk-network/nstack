@@ -4,7 +4,9 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use nstack::annotation::Cardinality;
+use core::borrow::Borrow;
+
+use nstack::annotation::{Cardinality, Keyed, MaxKey};
 use nstack::NStack;
 use ranno::Annotation;
 
@@ -88,7 +90,7 @@ fn nth_mut() {
 fn branch_lengths() {
     let n = 256;
 
-    let mut nt = NStack::<_, Cardinality>::new();
+    let mut nt = NStack::<_, MaxAndCardinality<usize>>::new();
 
     for i in 0..n {
         nt.push(i);
@@ -98,5 +100,71 @@ fn branch_lengths() {
 
     for i in 1..n {
         assert_eq!(length_zero, nt.nth(i).expect("Some(_)").depth())
+    }
+
+    let max_branch = nt.max_key().expect("Should have a max");
+    assert_eq!(*max_branch, n - 1);
+}
+
+#[derive(Debug, Clone)]
+struct MaxAndCardinality<K> {
+    cardinality: Cardinality,
+    max_key: MaxKey<K>,
+}
+
+impl<T, K> Annotation<NStack<T, MaxAndCardinality<K>>> for MaxAndCardinality<K>
+where
+    T: Keyed<K>,
+    K: Clone + PartialOrd,
+{
+    fn from_child(stack: &NStack<T, MaxAndCardinality<K>>) -> Self {
+        let mut max_key = MaxKey::<K>::NegativeInfinity;
+        let mut cardinality = 0;
+
+        match stack {
+            NStack::Leaf(leaf) => {
+                for key in leaf.iter().flatten().map(Keyed::key) {
+                    if &max_key < key {
+                        max_key = MaxKey::Maximum(key.clone());
+                    }
+                    cardinality += 1;
+                }
+            }
+            NStack::Node(node) => {
+                for annotated in node.iter().flatten() {
+                    let anno = &*annotated.anno();
+                    if max_key < anno.max_key {
+                        max_key = anno.max_key.clone();
+                    }
+                    cardinality += *anno.cardinality;
+                }
+            }
+        }
+
+        Self {
+            cardinality: cardinality.into(),
+            max_key,
+        }
+    }
+}
+
+impl<K> Default for MaxAndCardinality<K> {
+    fn default() -> Self {
+        Self {
+            max_key: Default::default(),
+            cardinality: Default::default(),
+        }
+    }
+}
+
+impl<K> Borrow<Cardinality> for MaxAndCardinality<K> {
+    fn borrow(&self) -> &Cardinality {
+        &self.cardinality
+    }
+}
+
+impl<K> Borrow<MaxKey<K>> for MaxAndCardinality<K> {
+    fn borrow(&self) -> &MaxKey<K> {
+        &self.max_key
     }
 }

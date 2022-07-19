@@ -36,22 +36,23 @@ impl PartialEq<usize> for Cardinality {
 
 impl<T> Annotation<NStack<T, Cardinality>> for Cardinality {
     fn from_child(stack: &NStack<T, Cardinality>) -> Self {
+        let mut cardinality = 0;
+
         match stack {
             NStack::Leaf(leaf) => {
-                let mut anno = Cardinality::default();
                 for _ in leaf.iter().flatten() {
-                    anno.0 += 1;
+                    cardinality += 1;
                 }
-                anno
             }
             NStack::Node(node) => {
-                let mut anno = Cardinality::default();
                 for a in node.iter().flatten() {
-                    let a = a.anno();
-                    anno.0 += (*a).0;
+                    let anno = a.anno();
+                    let c = &*anno;
+                    cardinality += c.0;
                 }
-                anno
             }
         }
+
+        cardinality.into()
     }
 }
