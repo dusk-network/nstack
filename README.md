@@ -7,22 +7,16 @@ nstack is a stack-like merkle datastructure for storing and accessing indexed va
 
 Operations supported are add and remove at the end of the structure, and mutable access to indexed leaves.
 
-# Usage example
-
+## Usage example
 ```rust
+use nstack::NStack;
 
-use kelvin::{annotations::Cardinality, Blake2b};
+let mut nt = NStack::<i32, ()>::new();
 
-let n: usize = 256;
-let mut nt = NStack::<_, Cardinality<u64>, Blake2b>::new();
+nt.push(0);
+nt.push(1);
 
-for i in 0..n {
-    nt.push(i).unwrap();
-}
-
-// get a mutable reference to the 128'th element
-
-let element = &mut *nt.get_mut(128).unwrap().unwrap();
-
+assert_eq!(nt.pop(), Some(1));
+assert_eq!(nt.pop(), Some(0));
 ```
 
