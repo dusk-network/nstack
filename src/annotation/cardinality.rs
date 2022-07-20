@@ -12,24 +12,24 @@ use ranno::Annotation;
 
 /// The cardinality of the NStack.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Cardinality(usize);
+pub struct Cardinality(u64);
 
-impl From<usize> for Cardinality {
-    fn from(c: usize) -> Self {
+impl From<u64> for Cardinality {
+    fn from(c: u64) -> Self {
         Self(c)
     }
 }
 
 impl Deref for Cardinality {
-    type Target = usize;
+    type Target = u64;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl PartialEq<usize> for Cardinality {
-    fn eq(&self, other: &usize) -> bool {
+impl PartialEq<u64> for Cardinality {
+    fn eq(&self, other: &u64) -> bool {
         self.0.eq(other)
     }
 }

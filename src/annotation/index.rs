@@ -17,17 +17,17 @@ where
     A: Annotation<Self> + Borrow<Cardinality>,
 {
     /// Construct a [`Branch`] pointing to the `nth` element, if any
-    pub fn nth(&self, index: usize) -> Option<Branch<Self, A>> {
+    pub fn nth(&self, index: u64) -> Option<Branch<Self, A>> {
         Branch::walk(self, Index(index))
     }
 
     /// Construct a [`BranchMut`] pointing to the `nth` element, if any
-    pub fn nth_mut(&mut self, index: usize) -> Option<BranchMut<Self, A>> {
+    pub fn nth_mut(&mut self, index: u64) -> Option<BranchMut<Self, A>> {
         BranchMut::walk(self, Index(index))
     }
 }
 
-struct Index(usize);
+struct Index(u64);
 
 impl<T, A> Walker<NStack<T, A>, A> for Index
 where

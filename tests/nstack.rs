@@ -40,7 +40,7 @@ fn multiple() {
 
     for i in 0..n {
         nt.push(i);
-        assert_eq!(Cardinality::from_child(&nt), (i + 1) as usize);
+        assert_eq!(Cardinality::from_child(&nt), (i + 1) as u64);
     }
 
     for i in 0..n {
@@ -90,7 +90,7 @@ fn nth_mut() {
 fn branch_lengths() {
     let n = 256;
 
-    let mut nt = NStack::<_, MaxAndCardinality<usize>>::new();
+    let mut nt = NStack::<_, MaxAndCardinality<u64>>::new();
 
     for i in 0..n {
         nt.push(i);
