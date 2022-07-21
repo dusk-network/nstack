@@ -11,7 +11,7 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: nightly
+          toolchain: stable
       - uses: actions-rs/cargo@v1
         with:
           command: install
@@ -20,8 +20,8 @@ jobs:
         with:
           command: dusk-analyzer
 
-  test_nightly:
-    name: Nightly tests Debug Mode
+  test:
+    name: Tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -31,6 +31,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
+          toolchain: stable
 
       - name: Install kcov
         run: sudo apt install -y kcov
@@ -64,7 +65,7 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: nightly-2022-02-10
+          toolchain: nightly
           override: true
       - run: rustup component add rustfmt
       - uses: actions-rs/cargo@v1
