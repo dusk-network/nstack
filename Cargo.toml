@@ -12,5 +12,5 @@ repository = "https://github.com/dusk-network/nstack"
 keywords = ["merkle", "datastructure", "stack"]
 
 [dependencies]
-ranno = { git = "ssh://git@github.com/dusk-network/ranno", branch = "main" }
-microkelvin = { git = "ssh://git@github.com/dusk-network/microkelvin", branch = "tree-only" }
+ranno = { git = "https://github.com/dusk-network/ranno", branch = "main" }
+microkelvin = { git = "https://git@github.com/dusk-network/microkelvin", branch = "tree-only" }
