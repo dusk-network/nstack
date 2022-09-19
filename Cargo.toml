@@ -1,6 +1,6 @@
 [package]
 name = "nstack"
-version = "0.15.0-rkyv.0"
+version = "0.16.0-rc.0"
 authors = [
     "Kristoffer Ström <kristoffer@dusk.network>",
     "Miłosz Muszyński <milosz@dusk.network>",
