@@ -1,20 +1,17 @@
 [package]
 name = "nstack"
-version = "0.15.0-rkyv.0"
+version = "0.16.0-rc.0"
 authors = [
     "Kristoffer Ström <kristoffer@dusk.network>",
-    "Miłosz Muszyński <milosz@dusk.network>"
+    "Miłosz Muszyński <milosz@dusk.network>",
+    "Eduardo Leegwater Simões <eduardo@dusk.network>"
 ]
-edition = "2018"
+edition = "2021"
 description = "Arity 4 stack for the kelvin merkle toolkit"
 license = "MPL-2.0"
 repository = "https://github.com/dusk-network/nstack"
 keywords = ["merkle", "datastructure", "stack"]
 
 [dependencies]
-bytecheck = { version = "0.6.7", default-features = false }
-microkelvin = { version = "0.16.0-rkyv", default-features = false }
-rkyv = { version = "0.7.29", default-features = false, features = ["validation"] }
-
-[dev-dependencies]
-microkelvin = { version = "0.16.0-rkyv" }
+microkelvin = "0.17.0-rc"
+ranno = "0.1"

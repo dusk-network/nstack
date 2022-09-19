@@ -7,10 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add annotations specific to the `nstack`
+
 ### Changed
 
-- Update `microkelvin` from `0.13.0-rc.0` to `0.16.0-rkyv.0`
-- Change `rust-toolchain` from `nightly` to `nightly-2022-02-19`
+- Update to use `ranno` annotations
+- Update `microkelvin` from `0.13.0-rc.0` to `0.17`
+- Change `rust-toolchain` to `stable`
 
 ## [0.10.0] - 2021-07-27
 
