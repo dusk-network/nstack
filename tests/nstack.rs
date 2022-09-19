@@ -4,26 +4,28 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use microkelvin::*;
+use core::borrow::Borrow;
+
+use nstack::annotation::{Cardinality, Keyed, MaxKey};
 use nstack::NStack;
-use rkyv::{Archive, Deserialize};
+use ranno::Annotation;
 
 #[test]
 fn trivial() {
-    let mut nt = NStack::<u32, Cardinality, OffsetLen>::new();
+    let mut nt = NStack::<u32, ()>::new();
     assert_eq!(nt.pop(), None);
 }
 
 #[test]
 fn push_pop() {
-    let mut nt = NStack::<_, Cardinality, OffsetLen>::new();
+    let mut nt = NStack::<u32, ()>::new();
     nt.push(8);
     assert_eq!(nt.pop(), Some(8));
 }
 
 #[test]
 fn double() {
-    let mut nt = NStack::<_, Cardinality, OffsetLen>::new();
+    let mut nt = NStack::<u32, ()>::new();
     nt.push(0);
     nt.push(1);
     assert_eq!(nt.pop(), Some(1));
@@ -34,10 +36,11 @@ fn double() {
 fn multiple() {
     let n = 1024;
 
-    let mut nt = NStack::<_, Cardinality, OffsetLen>::new();
+    let mut nt = NStack::<u32, Cardinality>::new();
 
     for i in 0..n {
         nt.push(i);
+        assert_eq!(Cardinality::from_child(&nt), (i + 1) as u64);
     }
 
     for i in 0..n {
@@ -49,83 +52,119 @@ fn multiple() {
 
 #[test]
 fn nth() {
-    let n: u64 = 1024;
+    let n = 1024;
 
-    let mut nstack = NStack::<_, Cardinality, OffsetLen>::new();
+    let mut nstack = NStack::<_, Cardinality>::new();
 
     for i in 0..n {
         nstack.push(i);
     }
 
     for i in 0..n {
-        assert_eq!(nstack.walk(Nth(i)).expect("Some(_)").leaf(), i);
+        assert_eq!(*nstack.nth(i).expect("Some(_)"), i);
     }
 
-    assert!(nstack.walk(Nth(n)).is_none());
+    assert!(nstack.nth(n).is_none());
 }
 
 #[test]
 fn nth_mut() {
-    let n: u64 = 1024;
+    let n = 1024;
 
-    let mut nstack = NStack::<_, Cardinality, OffsetLen>::new();
+    let mut nstack = NStack::<_, Cardinality>::new();
 
     for i in 0..n {
         nstack.push(i);
     }
 
     for i in 0..n {
-        let mut branch_mut = nstack.walk_mut(Nth(i)).expect("Some(_)");
-        *branch_mut.leaf_mut() += 1;
+        *nstack.nth_mut(i).expect("Some(_)") += 1;
     }
 
     for i in 0..n {
-        assert_eq!(nstack.walk(Nth(i)).expect("Some(_)").leaf(), i + 1);
+        assert_eq!(*nstack.nth(i).expect("Some(_)"), i + 1);
     }
 }
 
-// Assert that all branches are always of the same length
 #[test]
 fn branch_lengths() {
     let n = 256;
 
-    let mut nt = NStack::<_, Cardinality, OffsetLen>::new();
+    let mut nt = NStack::<_, MaxAndCardinality<u64>>::new();
 
     for i in 0..n {
         nt.push(i);
     }
 
-    let length_reference = nt.walk(All).expect("Some(_)").depth();
+    let length_zero = nt.nth(0).expect("Some(_)").depth();
 
-    for i in 0..n {
-        assert_eq!(length_reference, nt.walk(Nth(i)).expect("Some(_)").depth())
+    for i in 1..n {
+        assert_eq!(length_zero, nt.nth(i).expect("Some(_)").depth())
+    }
+
+    let max_branch = nt.max_key().expect("Should have a max");
+    assert_eq!(*max_branch, n - 1);
+}
+
+#[derive(Debug, Clone)]
+struct MaxAndCardinality<K> {
+    cardinality: Cardinality,
+    max_key: MaxKey<K>,
+}
+
+impl<T, K> Annotation<NStack<T, MaxAndCardinality<K>>> for MaxAndCardinality<K>
+where
+    T: Keyed<K>,
+    K: Clone + PartialOrd,
+{
+    fn from_child(stack: &NStack<T, MaxAndCardinality<K>>) -> Self {
+        let mut max_key = MaxKey::<K>::NegativeInfinity;
+        let mut cardinality = 0;
+
+        match stack {
+            NStack::Leaf(leaf) => {
+                for key in leaf.iter().flatten().map(Keyed::key) {
+                    if &max_key < key {
+                        max_key = MaxKey::Maximum(key.clone());
+                    }
+                    cardinality += 1;
+                }
+            }
+            NStack::Node(node) => {
+                for annotated in node.iter().flatten() {
+                    let anno = &*annotated.anno();
+                    if max_key < anno.max_key {
+                        max_key = anno.max_key.clone();
+                    }
+                    cardinality += *anno.cardinality;
+                }
+            }
+        }
+
+        Self {
+            cardinality: cardinality.into(),
+            max_key,
+        }
     }
 }
 
-#[test]
-fn persist() {
-    let n: u64 = 1024;
-
-    let mut stack = NStack::<_, Cardinality, OffsetLen>::new();
-    for i in 0..n {
-        stack.push(i);
+impl<K> Default for MaxAndCardinality<K> {
+    fn default() -> Self {
+        Self {
+            max_key: Default::default(),
+            cardinality: Default::default(),
+        }
     }
+}
 
-    let store = StoreRef::new(HostStore::new());
-    let stored = store.store(&stack);
-
-    let restored: &<NStack<u64, Cardinality, OffsetLen> as Archive>::Archived =
-        store.get::<NStack<_, Cardinality, OffsetLen>>(stored.ident());
-    let restored: NStack<u64, Cardinality, OffsetLen> =
-        restored.deserialize(&mut store.clone()).unwrap();
-
-    // empty original
-    for i in 0..n {
-        assert_eq!(stack.pop().unwrap(), n - i - 1);
+impl<K> Borrow<Cardinality> for MaxAndCardinality<K> {
+    fn borrow(&self) -> &Cardinality {
+        &self.cardinality
     }
+}
 
-    // check restored copy
-    for i in 0..n {
-        assert_eq!(restored.walk(Nth(i)).unwrap().leaf(), i);
+impl<K> Borrow<MaxKey<K>> for MaxAndCardinality<K> {
+    fn borrow(&self) -> &MaxKey<K> {
+        &self.max_key
     }
 }
